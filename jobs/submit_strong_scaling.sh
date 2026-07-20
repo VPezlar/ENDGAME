@@ -48,7 +48,7 @@ for idx in 0 1 2 3 4; do
         -v "ENDGAME_NX=${N},ENDGAME_Q=${Q},ENDGAME_MODES=${MODES},ENDGAME_NCV=${NCV},ENDGAME_TARGET=${TARGET}" \
         jobs/run_scaling_job.sh)
 
-    echo "  P=${P:3}  (${NODES}n x ${PPN}ppn)  tag=${TAG}  job=${JOB_ID}"
+    echo "  P=${P}  (${NODES}n x ${PPN}ppn)  tag=${TAG}  job=${JOB_ID}"
 done
 
 echo ""

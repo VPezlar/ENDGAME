@@ -49,7 +49,7 @@ for idx in 0 1 2 3 4; do
         jobs/run_scaling_job.sh)
 
     DOF=$(python3 -c "print((${N}+1)**3)")
-    echo "  P=${P:3}  N=${N:2}  DOF=${DOF}  (${NODES}n x ${PPN}ppn)  job=${JOB_ID}"
+    echo "  P=${P}  N=${N}  DOF=${DOF}  (${NODES}n x ${PPN}ppn)  job=${JOB_ID}"
 done
 
 echo ""
