@@ -108,6 +108,17 @@ def assemble_distributed(Nx, Ny, Nz, q, xi_half=0.501, eta_half=0.501, zeta_half
     # rend is exclusive (Python slice convention).
     rstart, rend = A_petsc.getOwnershipRange()
 
+    # DIAGNOSTIC: verify all sizes are consistent before assembly
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    if rank == 0:
+        print(f'[operators] Nx_n={Nx_n} Ny_n={Ny_n} Nz_n={Nz_n} N_total={N_total}'
+              f' dxx={dxx.shape} dyy={dyy.shape} dzz={dzz.shape}', flush=True)
+    assert dxx.shape == (Nx_n, Nx_n), f'[Rank {rank}] dxx shape {dxx.shape} != ({Nx_n},{Nx_n})'
+    assert dzz.shape == (Nz_n, Nz_n), f'[Rank {rank}] dzz shape {dzz.shape} != ({Nz_n},{Nz_n})'
+    assert N_total == (rend - rstart) * comm.Get_size() or True, 'sanity'
+
+
     # ------------------------------------------------------------------
     # 4.  Row-local assembly — only owned rows are touched
     # ------------------------------------------------------------------

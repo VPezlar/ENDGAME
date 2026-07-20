@@ -1,7 +1,4 @@
 #!/bin/bash
-# Generic PBS template for the ENDGAME scaling study.
-# Parameters passed via: qsub -v "ENDGAME_NX=60,..." run_scaling_job.sh
-
 #PBS -N ENDGAME_scaling
 #PBS -q zeus_all_q
 #PBS -l walltime=12:00:00
@@ -33,21 +30,26 @@ echo " Modes/NCV: $ENDGAME_MODES / $ENDGAME_NCV"
 echo " Out tag  : N${ENDGAME_NX}_q${ENDGAME_Q}_P${NPROCS}"
 echo "========================================"
 
-# CRITICAL: disable Python bytecode caching.
-# On NFS clusters, compute nodes can cache stale .pyc files and run old code
-# even after the .py source has been updated. This silently produces wrong
-# results. PYTHONDONTWRITEBYTECODE=1 forces Python to always interpret the
-# .py file directly — no .pyc is read or written, ever.
+# Disable .pyc caching — prevents stale NFS bytecode from being used
 export PYTHONDONTWRITEBYTECODE=1
 
-# Also delete any existing cache just in case
+# Purge any cached bytecode files
 find "$PBS_O_WORKDIR/src" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 find "$PBS_O_WORKDIR/src" -name '*.pyc' -delete 2>/dev/null || true
 
-# Prevent OpenBLAS/MUMPS from spawning extra threads per rank
 export OMP_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
-
 export ENDGAME_NX ENDGAME_Q ENDGAME_MODES ENDGAME_NCV ENDGAME_TARGET
 
-mpiexec -n $NPROCS "$PYTHON" -u main.py
+# Pass PYTHONDONTWRITEBYTECODE explicitly to every remote MPI rank via -x.
+# Without -x, OpenMPI may not propagate all shell env vars to remote nodes.
+mpiexec -n $NPROCS \
+    -x PYTHONDONTWRITEBYTECODE \
+    -x OMP_NUM_THREADS \
+    -x OPENBLAS_NUM_THREADS \
+    -x ENDGAME_NX \
+    -x ENDGAME_Q \
+    -x ENDGAME_MODES \
+    -x ENDGAME_NCV \
+    -x ENDGAME_TARGET \
+    "$PYTHON" -u main.py
