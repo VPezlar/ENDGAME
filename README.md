@@ -4,6 +4,8 @@ Tri-global hydrodynamic stability solver using high-order finite differences, PE
 
 Solves the generalised eigenvalue problem arising from a 3-D Helmholtz operator discretised on a stretched boundary-layer grid. The solver targets a user-specified spectral shift and extracts the nearest eigenpairs using the Krylov–Schur method with MUMPS as the shift-and-invert factoriser.
 
+> **Development status** — The `main` branch is a development branch. The current operator is the 3-D Helmholtz equation, used as a well-understood test case while the MPI/PETSc/SLEPc HPC infrastructure is being built and validated. The long-term goal is to replace the Helmholtz operator with full linearised Navier–Stokes operators for tri-global instability analysis.
+
 ---
 
 ## Project layout
@@ -98,7 +100,7 @@ All user-facing parameters live at the top of `main.py`:
 | Parameter | Default | Description |
 |---|---|---|
 | `Nx, Ny, Nz` | 30, 30, 30 | Grid points per direction |
-| `q` | 6 | FD stencil half-width |
+| `q` | 6 | FD stencil size (Fornberg form — full number of points in the stencil) |
 | `xi_half, eta_half, zeta_half` | 0.501 | BL stretching half-domain |
 | `target_metric` | 43.0 | Target integer metric for shift-and-invert |
 | `num_modes` | 50 | Number of eigenpairs to extract |
@@ -118,7 +120,7 @@ Results are written to `output/` by rank 0 after convergence:
 
 ## How it works
 
-1. **FDq** — Rank 0 calls the Fortran binary to compute high-order finite-difference matrices D¹ and D² on a uniform reference grid of N+1 points with stencil half-width q.  
+1. **FDq** — Rank 0 calls the Fortran binary to compute high-order finite-difference matrices D¹ and D² on a uniform reference grid of N+1 points. `q` is the full stencil size in Fornberg form (not a half-width).  
 2. **Grid mapping** — The reference grid is stretched via a boundary-layer algebraic map (`BL_Map`) and then rescaled to [−1, 1] (`Map1D`).  
 3. **Operator assembly** — Second-derivative operators are assembled in 3-D via Kronecker products. Boundary rows are replaced by identity (Dirichlet BCs) through a mass-matrix masking strategy.  
 4. **SLEPc solve** — The SciPy CSR matrices are distributed across MPI ranks as PETSc `MPIAIJ` matrices. A Krylov–Schur eigensolver with shift-and-invert (MUMPS LU) extracts the requested modes near the spectral target.
