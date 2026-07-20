@@ -80,5 +80,13 @@ with open(run_path, 'w') as f:
     f.write('\n'.join(run_lines) + '\n')
 os.chmod(run_path, 0o755)
 
+# WARNING — Stale NFS file handle
+# Once a job has been submitted from this case directory, do NOT
+# delete or recreate it while the job is running. On NFS, deleting
+# a directory removes its inode. The running job holds NFS handles
+# to the old inode; if you rm -rf and recreate, any writes at job
+# end will get errno 116 "Stale file handle" and the results will
+# be lost. Each case directory is permanent for the lifetime of its job.
+
 print(f"Created: {case_dir}")
 print(f"Submit:  cd '{case_dir}' && qsub run.sh")
