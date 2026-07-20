@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Conda / virtual envs
+.env
+.venv
+env/
+
+# Fortran build artifacts
+FDq/bin/FDq
+FDq/obj/*.o
+FDq/mod/*.mod
+
+# Fortran runtime I/O (generated at run-time)
+FDq/inputs/input_size.dat
+FDq/output/d1.dat
+FDq/output/d2.dat
+FDq/output/eta.dat
+
+# Simulation output data (keep directory structure via .gitkeep)
+output/eigenvalues/*.txt
+output/eigenvectors/*.csv
+
+# SLURM log files
+*.log
+triglobal_*.log
