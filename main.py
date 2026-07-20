@@ -25,6 +25,8 @@ zeta_half = float(os.environ.get("ENDGAME_ZETA_HALF", 0.501))
 target_metric = float(os.environ.get("ENDGAME_TARGET", 43.0))
 num_modes     = int(os.environ.get("ENDGAME_MODES", 100))
 krylov_size   = int(os.environ.get("ENDGAME_NCV",   300))
+imag_shift = float(os.environ.get("ENDGAME_IMAG_SHIFT", 0.0))
+# Non-zero adds i*imag_shift*B to A: eigenvalues become lambda_j + i*imag_shift
 
 # ==========================================
 # Execution Engine
@@ -66,13 +68,15 @@ if __name__ == "__main__":
             print(f"  Total DOF    : {N_total:,}")
             print(f"  Target metric: {target_metric}  ->  sigma={target_sigma:.4f}")
             print(f"  Modes / NCV  : {num_modes} / {krylov_size}")
+        if imag_shift:
+            print(f"  Imag shift   : {imag_shift}  (complex eigenvalues active)")
             print(f"  Output dir   : {out_dir}")
             print("==========================================")
             print(f"\n[1/3] Assembling operators...")
 
         t0 = time.time()
         A_petsc, B_petsc, x, y, z = assemble_distributed(
-            Nx, Ny, Nz, q, xi_half, eta_half, zeta_half
+            Nx, Ny, Nz, q, xi_half, eta_half, zeta_half, imag_shift=imag_shift
         )
         t_assemble = time.time() - t0
 

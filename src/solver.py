@@ -134,6 +134,10 @@ def solve_evp(A_petsc, B_petsc, target_metric, num_modes, krylov_size):
         # np.real() extracts real parts — correct for both real and complex builds.
         # For Helmholtz (real symmetric) imaginary parts are ~machine precision.
         lambda_sq   = -np.real(eigenvalues_raw)
+        # Print imaginary parts if non-trivial — proves complex arithmetic is active
+        _imag = np.imag(np.array(eigenvalues_raw, dtype=complex))
+        if np.any(np.abs(_imag) > 1e-10):
+            print(f"  Im(eigenvalues)[:3] = {_imag[:3]}  << complex arithmetic confirmed >>", flush=True)
         # Eigenvectors from complex PETSc are complex numpy arrays.
         # np.column_stack works for both real and complex arrays.
         eigenvectors = np.column_stack(eigenvectors_raw)

@@ -6,7 +6,7 @@ from src import FDq as FD
 from src.grid import BL_Map, Map1D
 
 
-def assemble_distributed(Nx, Ny, Nz, q, xi_half=0.501, eta_half=0.501, zeta_half=0.501):
+def assemble_distributed(Nx, Ny, Nz, q, xi_half=0.501, eta_half=0.501, zeta_half=0.501, imag_shift=0.0):
     """
     Assemble the Laplacian (A) and mass (B) matrices as distributed PETSc
     MPIAIJ matrices without ever building a global SciPy matrix.
@@ -198,5 +198,13 @@ def assemble_distributed(Nx, Ny, Nz, q, xi_half=0.501, eta_half=0.501, zeta_half
     # compresses the internal storage. Calling only Begin or only End would deadlock.
     A_petsc.assemblyBegin(); A_petsc.assemblyEnd()
     B_petsc.assemblyBegin(); B_petsc.assemblyEnd()
+
+    # Optional imaginary shift: A → A + i·imag_shift·B
+    # Each eigenvalue λ_j (real) becomes λ_j + i·imag_shift.
+    # The integer metric (from real part) is unchanged;
+    # the imaginary part confirms complex arithmetic is active.
+    if imag_shift != 0.0:
+        A_petsc.axpy(1j * imag_shift, B_petsc)
+        A_petsc.assemblyBegin(); A_petsc.assemblyEnd()
 
     return A_petsc, B_petsc, x, y, z
