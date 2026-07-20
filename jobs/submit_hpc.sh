@@ -1,26 +1,30 @@
 #!/bin/bash
-#SBATCH --job-name=TriGlobal_Dev
-#SBATCH --output=triglobal_%j.log
-#SBATCH --nodes=1
-#SBATCH --ntasks=16
-#SBATCH --cpus-per-task=1
-#SBATCH --time=01:00:00
+#PBS -N ENDGAME
+#PBS -q zeus_all_q
+#PBS -l nodes=1:ppn=16
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o logs/endgame_pbs.log
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd $PBS_O_WORKDIR
+mkdir -p logs
+
+# PBS Pro does not set $PBS_NP; count from the nodefile instead
+NPROCS=$(wc -l < $PBS_NODEFILE)
 
 echo "==========================================="
-echo " TRI-GLOBAL HPC SLURM JOB"
+echo " ENDGAME — PBS JOB"
 echo "==========================================="
-echo " Job ID      : $SLURM_JOB_ID"
-echo " Nodes       : $SLURM_JOB_NUM_NODES"
-echo " MPI ranks   : $SLURM_NTASKS"
-echo " Project root: $PROJECT_ROOT"
+echo " Job ID      : $PBS_JOBID"
+echo " Node list   : $(sort -u $PBS_NODEFILE | tr '\n' ' ')"
+echo " MPI ranks   : $NPROCS"
+echo " Working dir : $PBS_O_WORKDIR"
 echo "==========================================="
 
-# Activate conda environment
-source "$(conda info --base)/etc/profile.d/conda.sh"
+source "$HOME/miniconda3/etc/profile.d/conda.sh"
 conda activate tri_engine
 
-cd "$PROJECT_ROOT"
-mpiexec -n $SLURM_NTASKS python main.py
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+
+mpiexec -n $NPROCS python -u main.py
