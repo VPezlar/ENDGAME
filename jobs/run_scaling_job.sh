@@ -1,7 +1,6 @@
 #!/bin/bash
-# Generic single-run PBS script for the ENDGAME scaling study.
-# Parameters are passed via qsub -v, e.g.:
-#   qsub -v "ENDGAME_NX=60" -l nodes=4:ppn=16 run_scaling_job.sh
+# Generic PBS template for the ENDGAME scaling study.
+# Parameters passed via: qsub -v "ENDGAME_NX=60,..." run_scaling_job.sh
 
 #PBS -N ENDGAME_scaling
 #PBS -q zeus_all_q
@@ -12,42 +11,43 @@
 cd $PBS_O_WORKDIR
 mkdir -p logs
 
-# Count total MPI ranks from the nodefile (PBS Pro: $PBS_NP is not set)
 NPROCS=$(wc -l < $PBS_NODEFILE)
 
-# Default params — overridden by qsub -v
 : ${ENDGAME_NX:=30}
 : ${ENDGAME_Q:=6}
 : ${ENDGAME_MODES:=100}
 : ${ENDGAME_NCV:=300}
 : ${ENDGAME_TARGET:=43.0}
 
-# Use the absolute path to Python from the conda env.
-# This is the key fix for multi-node jobs: conda activate only sets up
-# the shell on the head node. Remote nodes spawned by mpiexec via SSH
-# do not inherit the shell environment, so `python` is not found.
-# Using the absolute path means every rank — on every node — finds the
-# correct interpreter with petsc4py/slepc4py/mpi4py already installed.
 PYTHON="$HOME/miniconda3/envs/tri_engine/bin/python"
 
 echo "========================================"
 echo " ENDGAME scaling job"
 echo "========================================"
-echo " Job ID      : $PBS_JOBID"
-echo " Nodes       : $(sort -u $PBS_NODEFILE | tr '\n' ' ')"
-echo " MPI ranks   : $NPROCS"
-echo " Python      : $PYTHON"
-echo " Grid N      : $ENDGAME_NX"
-echo " Modes/NCV   : $ENDGAME_MODES / $ENDGAME_NCV"
-echo " Output tag  : N${ENDGAME_NX}_q${ENDGAME_Q}_P${NPROCS}"
+echo " Job ID   : $PBS_JOBID"
+echo " Nodes    : $(sort -u $PBS_NODEFILE | tr '\n' ' ')"
+echo " Ranks    : $NPROCS"
+echo " Python   : $PYTHON"
+echo " N        : $ENDGAME_NX"
+echo " Modes/NCV: $ENDGAME_MODES / $ENDGAME_NCV"
+echo " Out tag  : N${ENDGAME_NX}_q${ENDGAME_Q}_P${NPROCS}"
 echo "========================================"
 
-# Prevent thread oversubscription: each MPI rank should be single-threaded.
-# Without this, OpenBLAS/MUMPS spawn extra threads and overload the cores.
+# CRITICAL: disable Python bytecode caching.
+# On NFS clusters, compute nodes can cache stale .pyc files and run old code
+# even after the .py source has been updated. This silently produces wrong
+# results. PYTHONDONTWRITEBYTECODE=1 forces Python to always interpret the
+# .py file directly — no .pyc is read or written, ever.
+export PYTHONDONTWRITEBYTECODE=1
+
+# Also delete any existing cache just in case
+find "$PBS_O_WORKDIR/src" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+find "$PBS_O_WORKDIR/src" -name '*.pyc' -delete 2>/dev/null || true
+
+# Prevent OpenBLAS/MUMPS from spawning extra threads per rank
 export OMP_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 
-# Export ENDGAME_ params so main.py picks them up via os.environ
 export ENDGAME_NX ENDGAME_Q ENDGAME_MODES ENDGAME_NCV ENDGAME_TARGET
 
 mpiexec -n $NPROCS "$PYTHON" -u main.py

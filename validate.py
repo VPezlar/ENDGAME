@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
     t0 = time.time()
     A, B, x, y, z = assemble_distributed(Nx, Ny, Nz, q, xi_half, eta_half, zeta_half)
-    int_m, lsq, evecs = solve_evp(A, B, target_metric, num_modes, krylov_size)
+    int_m, lsq, evecs, _ = solve_evp(A, B, target_metric, num_modes, krylov_size)
 
     if rank == 0:
         print(f"Wall time: {time.time()-t0:.2f}s")
