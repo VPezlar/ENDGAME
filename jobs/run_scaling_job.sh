@@ -17,14 +17,8 @@ NPROCS=$(wc -l < $PBS_NODEFILE)
 
 PYTHON="$HOME/miniconda3/envs/tri_engine/bin/python"
 
-# -------------------------------------------------------
-# Create an isolated per-job working directory.
-# $TMPDIR is set by PBS to /gtmp/pbs.{JOBID}/ — unique
-# per job. Rsyncing the project here means:
-#   - Each job has its own FDq/inputs/ and FDq/output/
-#   - Each job has its own src/ (no shared __pycache__)
-#   - Concurrent jobs cannot interfere at all
-# -------------------------------------------------------
+# Create an isolated per-job working directory in PBS scratch space.
+# Each job gets /gtmp/pbs.{JOBID}/ — completely private, no sharing.
 RUNDIR="$TMPDIR/endgame_run"
 mkdir -p "$RUNDIR"
 
@@ -38,8 +32,6 @@ rsync -a \
     "$PBS_O_WORKDIR/" "$RUNDIR/"
 
 mkdir -p "$RUNDIR/output" "$RUNDIR/logs"
-
-cd "$RUNDIR"
 
 echo "========================================"
 echo " ENDGAME scaling job"
@@ -58,13 +50,18 @@ export OMP_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 export ENDGAME_NX ENDGAME_Q ENDGAME_MODES ENDGAME_NCV ENDGAME_TARGET
 
+# --wdir sets the working directory on EVERY MPI rank (including remote nodes).
+# Without it, OpenMPI spawns remote processes in the user's HOME directory,
+# and Python cannot find main.py or the src/ package.
+# We also pass main.py as an absolute path as a double safety.
 mpiexec -n $NPROCS \
+    --wdir "$RUNDIR" \
     -x PYTHONDONTWRITEBYTECODE \
     -x OMP_NUM_THREADS \
     -x OPENBLAS_NUM_THREADS \
     -x ENDGAME_NX -x ENDGAME_Q \
     -x ENDGAME_MODES -x ENDGAME_NCV -x ENDGAME_TARGET \
-    "$PYTHON" -u main.py
+    "$PYTHON" -u "$RUNDIR/main.py"
 
-# Copy results back to permanent project directory
+# Copy results back to the permanent project output directory
 rsync -a "$RUNDIR/output/" "$PBS_O_WORKDIR/output/"
