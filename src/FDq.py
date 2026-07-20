@@ -1,67 +1,79 @@
 import numpy as np
 import subprocess
 import os
+import shutil
+import tempfile
 from mpi4py import MPI
 
-# Compute the absolute path to the project root (one level above this file's
-# directory). Used to build all paths relative to the repo root regardless of
-# where the script is run from.
+# Absolute path to the project root.
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Absolute path to the FDq binary (never changes).
+_FDQ_BIN = os.path.join(_ROOT, 'FDq', 'bin', 'FDq')
 
 
 def FDq_Mat(N, q):
     """
-    Compute 1-D finite-difference differentiation matrices for N+1 grid nodes
-    using a Fornberg-type stencil of full size q.
+    Compute 1-D finite-difference matrices for N+1 grid nodes, stencil size q.
 
-    The computation is delegated to the Fortran binary FDq/bin/FDq, which uses
-    the Hermanns & Hernandez (2008) piecewise polynomial interpolation algorithm
-    to find optimal (Gauss-extrema) node positions and the resulting FD weights.
+    The Fortran binary FDq/bin/FDq uses hardcoded relative paths:
+        ../FDq/inputs/input_size.dat   (input)
+        ../FDq/output/d1.dat           (output)
+        ../FDq/output/d2.dat           (output)
+        ../FDq/output/eta.dat          (output)
+    resolved relative to the working directory it is launched with.
 
-    Returns
-    -------
-    D1  : (N+1, N+1) numpy array  — first-derivative matrix  (d/dξ)
-    D2  : (N+1, N+1) numpy array  — second-derivative matrix (d²/dξ²)
-    grid: (N+1,)      numpy array  — optimal node positions on [-1, 1]
+    RACE-CONDITION FIX (multi-job HPC):
+    On a cluster, multiple jobs share the same NFS home directory. If two jobs
+    call FDq_Mat concurrently, they overwrite each other's input_size.dat and
+    output files, producing silently wrong results (size mismatches, corrupted
+    matrices).
 
-    MPI behaviour
-    -------------
-    Only rank 0 does the file I/O and subprocess call to avoid race conditions
-    (all ranks writing the same file simultaneously would corrupt it). Rank 0
-    then broadcasts the result to all other ranks so every rank holds identical
-    copies of D1, D2, and grid.
+    The fix: each call creates a private temporary directory that mirrors the
+    expected layout. The binary is launched with cwd=tmpdir/src, so all file
+    I/O happens inside that private directory.  The tmpdir is deleted after use.
+
+    MPI: only rank 0 does the I/O and subprocess call; the result is broadcast
+    to all other ranks afterwards.
     """
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
 
-    # Initialise to None on every rank. After the broadcast, all ranks will
-    # hold the same list. Non-zero ranks never touch this variable before bcast.
     result = None
-
     if rank == 0:
-        # The Fortran binary expects two integers: the number of nodes and
-        # the stencil size q, on separate lines.
-        input_size = str(N + 1) + "\n" + str(q)
-        with open(os.path.join(_ROOT, 'FDq', 'inputs', 'input_size.dat'), 'w') as f:
-            f.write(input_size)
+        # Create a unique per-call temp directory.
+        # tempfile.mkdtemp() uses the system temp dir (/tmp on Linux),
+        # which is node-local and not shared across NFS — zero race risk.
+        tmpdir = tempfile.mkdtemp(prefix='fdq_')
+        try:
+            # Recreate the directory structure the Fortran binary expects.
+            # binary cwd = tmpdir/src
+            # binary reads: ../FDq/inputs/input_size.dat
+            #               = tmpdir/FDq/inputs/input_size.dat
+            # binary writes: ../FDq/output/d1.dat
+            #               = tmpdir/FDq/output/d1.dat
+            os.makedirs(os.path.join(tmpdir, 'src'))
+            os.makedirs(os.path.join(tmpdir, 'FDq', 'inputs'))
+            os.makedirs(os.path.join(tmpdir, 'FDq', 'output'))
 
-        # subprocess.call() blocks until the Fortran binary finishes.
-        # cwd=src/ is required because the Fortran binary uses relative paths
-        # like '../FDq/output/d1.dat' to write its output files.
-        subprocess.call(os.path.join(_ROOT, 'FDq', 'bin', 'FDq'),
-                        cwd=os.path.join(_ROOT, 'src'))
+            # Write the input file into the private directory.
+            with open(os.path.join(tmpdir, 'FDq', 'inputs', 'input_size.dat'), 'w') as f:
+                f.write(f"{N + 1}\n{q}")
 
-        # Read the three output files written by the Fortran binary.
-        # d1.dat and d2.dat are (N+1)×(N+1) matrices (space-separated rows).
-        # eta.dat is a 1-D array of node positions on [-1, 1].
-        D1_FDq = np.loadtxt(os.path.join(_ROOT, 'FDq', 'output', 'd1.dat'))
-        D2_FDq = np.loadtxt(os.path.join(_ROOT, 'FDq', 'output', 'd2.dat'))
-        grid   = np.loadtxt(os.path.join(_ROOT, 'FDq', 'output', 'eta.dat'))
-        result = [D1_FDq, D2_FDq, grid]
+            # Call the Fortran binary with cwd pointing to tmpdir/src.
+            # subprocess.call() blocks until the binary finishes.
+            subprocess.call(_FDQ_BIN, cwd=os.path.join(tmpdir, 'src'))
 
-    # comm.bcast() is a collective call — EVERY rank must reach this line.
-    # Rank 0 sends its `result` list to all other ranks.
-    # Other ranks receive it and overwrite their local `result = None`.
-    # After this line, all P ranks hold identical [D1, D2, grid] lists.
+            # Read back the outputs from the private directory.
+            D1_FDq = np.loadtxt(os.path.join(tmpdir, 'FDq', 'output', 'd1.dat'))
+            D2_FDq = np.loadtxt(os.path.join(tmpdir, 'FDq', 'output', 'd2.dat'))
+            grid   = np.loadtxt(os.path.join(tmpdir, 'FDq', 'output', 'eta.dat'))
+            result = [D1_FDq, D2_FDq, grid]
+        finally:
+            # Always clean up, even if the binary crashes.
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    # Broadcast from rank 0 to all other ranks.
+    # Before bcast: result is a list on rank 0, None on all others.
+    # After bcast:  result is identical on all ranks.
     result = comm.bcast(result, root=0)
     return result
