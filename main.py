@@ -30,6 +30,13 @@ krylov_size   = int(os.environ.get("ENDGAME_NCV",   300))
 # Execution Engine
 # ==========================================
 if __name__ == "__main__":
+    # Move every MPI rank to this script's own directory.
+    # mpiexec may spawn remote ranks from HOME; this one line
+    # ensures all ranks see the same FDq/, src/, and output/ layout.
+    import os as _os
+    _os.chdir(_os.path.dirname(_os.path.abspath(__file__)))
+    del _os
+
     comm  = MPI.COMM_WORLD
     rank  = comm.Get_rank()
     size  = comm.Get_size()
