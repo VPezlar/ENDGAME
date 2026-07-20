@@ -24,7 +24,8 @@ N          = int(sys.argv[1])
 P          = int(sys.argv[2])
 queue      = sys.argv[3] if len(sys.argv) > 3 else 'zeus_all_q'
 walltime_h = int(sys.argv[4]) if len(sys.argv) > 4 else 6
-nodes      = (P + 15) // 16      # ppn=16 nodes required
+ppn        = int(sys.argv[5]) if len(sys.argv) > 5 else 64
+nodes      = (P + ppn - 1) // ppn
 
 Q, MODES, NCV, TARGET = 6, 100, 300, 43.0
 tag      = f"N{N}_q{Q}_P{P}"
@@ -47,7 +48,7 @@ run_lines = [
     '#!/bin/bash',
     f'#PBS -N ENDGAME_{tag}',
     f'#PBS -q {queue}',
-    f'#PBS -l nodes={nodes}:ppn=16',
+    f'#PBS -l nodes={nodes}:ppn={ppn}',
     f'#PBS -l walltime={walltime_h:02d}:00:00',
     '#PBS -j oe',
     '#PBS -o logs/run.log',
@@ -62,7 +63,7 @@ run_lines = [
     f'export ENDGAME_NX={N} ENDGAME_Q={Q}',
     f'export ENDGAME_MODES={MODES} ENDGAME_NCV={NCV} ENDGAME_TARGET={TARGET}',
     '',
-    'mpiexec -n $NPROCS \\',
+    'mpiexec -n $NPROCS --bind-to none \\',
     '    -x PYTHONDONTWRITEBYTECODE \\',
     '    -x OMP_NUM_THREADS -x OPENBLAS_NUM_THREADS \\',
     '    -x ENDGAME_NX -x ENDGAME_Q \\',

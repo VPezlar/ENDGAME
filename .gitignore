@@ -35,3 +35,12 @@ output/eigenvectors/*.csv
 logs/*.log
 *.log
 triglobal_*.log
+
+# Per-case generated files (FDq I/O, eigenvector data, etc.)
+# Only timing.json and run.sh should be tracked (small, useful)
+cases/*/FDq/inputs/input_size.dat
+cases/*/FDq/output/
+cases/*/run_cwd/
+cases/*/output/*/eigenvalues/*.txt
+cases/*/output/*/eigenvectors/*.csv
+cases/*/logs/
