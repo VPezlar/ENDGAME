@@ -3,49 +3,44 @@ import subprocess
 import os
 from mpi4py import MPI
 
-# _ROOT is computed from THIS file's location.
-# When a job rsyncs the project to a per-job RUNDIR, __file__ is
-# RUNDIR/src/FDq.py, so _ROOT = RUNDIR — fully isolated per job.
-_ROOT   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Binary lives at the shared project root
+_ROOT    = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 _FDQ_BIN = os.path.join(_ROOT, 'FDq', 'bin', 'FDq')
 
 
 def FDq_Mat(N, q):
     """
-    Compute 1-D FD matrices for N+1 grid nodes, stencil size q.
+    Compute 1-D FD matrices for N+1 nodes, stencil q.
 
-    Reads/writes FDq/inputs/ and FDq/output/ relative to _ROOT.
-    Race-condition safety is guaranteed by the job runner: each PBS job
-    rsyncs the project to a per-job scratch directory, so _ROOT is
-    unique per job and no two jobs ever touch the same files.
+    Uses os.getcwd() for I/O — cwd is set to the case directory by
+    main.py at startup. Each case has its own FDq/inputs/ and
+    FDq/output/, so concurrent jobs never touch the same files.
+    Binary cwd = case_dir/src/ so '../FDq/...' resolves inside the case.
     """
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
 
     result = None
     if rank == 0:
-        input_path = os.path.join(_ROOT, 'FDq', 'inputs', 'input_size.dat')
-        with open(input_path, 'w') as f:
+        case_dir = os.getcwd()
+        inputs   = os.path.join(case_dir, 'FDq', 'inputs')
+        outputs  = os.path.join(case_dir, 'FDq', 'output')
+        cwd_bin  = os.path.join(case_dir, 'run_cwd')
+        os.makedirs(cwd_bin, exist_ok=True)  # ../FDq/ resolves here
+
+        with open(os.path.join(inputs, 'input_size.dat'), 'w') as f:
             f.write(f"{N + 1}\n{q}")
 
-        # Binary uses paths relative to cwd=_ROOT/src
-        subprocess.call(_FDQ_BIN, cwd=os.path.join(_ROOT, 'src'))
+        subprocess.call(_FDQ_BIN, cwd=cwd_bin)
 
-        D1_FDq = np.loadtxt(os.path.join(_ROOT, 'FDq', 'output', 'd1.dat'))
-        D2_FDq = np.loadtxt(os.path.join(_ROOT, 'FDq', 'output', 'd2.dat'))
-        grid   = np.loadtxt(os.path.join(_ROOT, 'FDq', 'output', 'eta.dat'))
+        D1   = np.loadtxt(os.path.join(outputs, 'd1.dat'))
+        D2   = np.loadtxt(os.path.join(outputs, 'd2.dat'))
+        grid = np.loadtxt(os.path.join(outputs, 'eta.dat'))
 
-        # Hard assertion: catch any size mismatch immediately
-        assert D1_FDq.shape == (N + 1, N + 1), \
-            f"[FDq] WRONG SIZE: expected ({N+1},{N+1}), got {D1_FDq.shape}"
-        assert len(grid) == N + 1, \
-            f"[FDq] WRONG GRID: expected {N+1}, got {len(grid)}"
-
-        print(f"[FDq] N={N} -> D1:{D1_FDq.shape} grid:{len(grid)} root:{_ROOT}", flush=True)
-        result = [D1_FDq, D2_FDq, grid]
+        assert D1.shape == (N+1, N+1), \
+            f"FDq size error: got {D1.shape}, expected ({N+1},{N+1})"
+        print(f"[FDq] N={N} -> D1:{D1.shape}  case:{case_dir}", flush=True)
+        result = [D1, D2, grid]
 
     result = comm.bcast(result, root=0)
-    assert result is not None, "FDq_Mat: bcast returned None"
-    assert len(result[2]) == N + 1, \
-        f"[Rank {comm.Get_rank()}] bcast size mismatch: got {len(result[2])}, expected {N+1}"
     return result
