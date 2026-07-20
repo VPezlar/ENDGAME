@@ -1,57 +1,51 @@
 import numpy as np
 import subprocess
 import os
-import shutil
-import tempfile
 from mpi4py import MPI
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# _ROOT is computed from THIS file's location.
+# When a job rsyncs the project to a per-job RUNDIR, __file__ is
+# RUNDIR/src/FDq.py, so _ROOT = RUNDIR — fully isolated per job.
+_ROOT   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _FDQ_BIN = os.path.join(_ROOT, 'FDq', 'bin', 'FDq')
 
 
 def FDq_Mat(N, q):
     """
     Compute 1-D FD matrices for N+1 grid nodes, stencil size q.
-    Uses a private per-call temp directory to avoid NFS race conditions.
+
+    Reads/writes FDq/inputs/ and FDq/output/ relative to _ROOT.
+    Race-condition safety is guaranteed by the job runner: each PBS job
+    rsyncs the project to a per-job scratch directory, so _ROOT is
+    unique per job and no two jobs ever touch the same files.
     """
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
 
     result = None
     if rank == 0:
-        tmpdir = tempfile.mkdtemp(prefix='fdq_')
-        try:
-            os.makedirs(os.path.join(tmpdir, 'src'))
-            os.makedirs(os.path.join(tmpdir, 'FDq', 'inputs'))
-            os.makedirs(os.path.join(tmpdir, 'FDq', 'output'))
+        input_path = os.path.join(_ROOT, 'FDq', 'inputs', 'input_size.dat')
+        with open(input_path, 'w') as f:
+            f.write(f"{N + 1}\n{q}")
 
-            with open(os.path.join(tmpdir, 'FDq', 'inputs', 'input_size.dat'), 'w') as f:
-                f.write(f"{N + 1}\n{q}")
+        # Binary uses paths relative to cwd=_ROOT/src
+        subprocess.call(_FDQ_BIN, cwd=os.path.join(_ROOT, 'src'))
 
-            subprocess.call(_FDQ_BIN, cwd=os.path.join(tmpdir, 'src'))
+        D1_FDq = np.loadtxt(os.path.join(_ROOT, 'FDq', 'output', 'd1.dat'))
+        D2_FDq = np.loadtxt(os.path.join(_ROOT, 'FDq', 'output', 'd2.dat'))
+        grid   = np.loadtxt(os.path.join(_ROOT, 'FDq', 'output', 'eta.dat'))
 
-            D1_FDq = np.loadtxt(os.path.join(tmpdir, 'FDq', 'output', 'd1.dat'))
-            D2_FDq = np.loadtxt(os.path.join(tmpdir, 'FDq', 'output', 'd2.dat'))
-            grid   = np.loadtxt(os.path.join(tmpdir, 'FDq', 'output', 'eta.dat'))
+        # Hard assertion: catch any size mismatch immediately
+        assert D1_FDq.shape == (N + 1, N + 1), \
+            f"[FDq] WRONG SIZE: expected ({N+1},{N+1}), got {D1_FDq.shape}"
+        assert len(grid) == N + 1, \
+            f"[FDq] WRONG GRID: expected {N+1}, got {len(grid)}"
 
-            # ASSERTION: verify the binary returned the correct size
-            expected = N + 1
-            assert D1_FDq.shape == (expected, expected), \
-                f"FDq_Mat(N={N}): D1 shape {D1_FDq.shape} != expected ({expected},{expected})"
-            assert len(grid) == expected, \
-                f"FDq_Mat(N={N}): grid length {len(grid)} != expected {expected}"
-
-            print(f"[FDq_Mat] N={N} -> D1:{D1_FDq.shape} D2:{D2_FDq.shape} grid:{len(grid)} tmpdir:{tmpdir}",
-                  flush=True)
-            result = [D1_FDq, D2_FDq, grid]
-        finally:
-            shutil.rmtree(tmpdir, ignore_errors=True)
+        print(f"[FDq] N={N} -> D1:{D1_FDq.shape} grid:{len(grid)} root:{_ROOT}", flush=True)
+        result = [D1_FDq, D2_FDq, grid]
 
     result = comm.bcast(result, root=0)
-
-    # ASSERTION on all ranks: verify broadcast delivered consistent data
     assert result is not None, "FDq_Mat: bcast returned None"
     assert len(result[2]) == N + 1, \
-        f"[Rank {rank}] FDq_Mat(N={N}): after bcast grid length={len(result[2])}, expected {N+1}"
-
+        f"[Rank {comm.Get_rank()}] bcast size mismatch: got {len(result[2])}, expected {N+1}"
     return result
