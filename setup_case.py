@@ -6,14 +6,11 @@ Each case has its own FDq/inputs/, FDq/output/, output/, and a
 ready-to-submit PBS run.sh. Concurrent cases never touch each other.
 
 Usage:
-    python setup_case.py N P [queue] [walltime_hours]
+    python setup_case.py N P [queue] [walltime_hours] [ppn] [imag_shift]
 
-Example — strong scaling:
-    python setup_case.py 60 16  zeus_all_q 6
-    python setup_case.py 60 32  zeus_all_q 6
-    python setup_case.py 60 64  zeus_all_q 6
-    python setup_case.py 60 128 zeus_all_q 6
-    python setup_case.py 60 192 zeus_all_q 6
+Examples:
+    python setup_case.py 100 128 zeus_all_q 2 16 0.5   # complex test, 8 nodes
+    python setup_case.py  60  64 zeus_all_q 4 16 0.0   # real, 4 nodes
 """
 import os, sys, shutil
 
@@ -24,10 +21,11 @@ N          = int(sys.argv[1])
 P          = int(sys.argv[2])
 queue      = sys.argv[3] if len(sys.argv) > 3 else 'zeus_all_q'
 walltime_h = int(sys.argv[4]) if len(sys.argv) > 4 else 6
-ppn        = int(sys.argv[5]) if len(sys.argv) > 5 else 64
+ppn        = int(sys.argv[5]) if len(sys.argv) > 5 else 16
+imag_shift = float(sys.argv[6]) if len(sys.argv) > 6 else 0.0
 nodes      = (P + ppn - 1) // ppn
 
-Q, MODES, NCV, TARGET = 6, 100, 300, 43.0
+Q, MODES, NCV, TARGET = 6, 40, 100, 43.0
 tag      = f"N{N}_q{Q}_P{P}"
 case_dir = os.path.join(CASES, tag)
 
@@ -52,26 +50,29 @@ run_lines = [
     f'#PBS -l walltime={walltime_h:02d}:00:00',
     '#PBS -j oe',
     '',
-    '# Redirect output immediately to a log file on NFS.',
-    '# This bypasses PBS output buffering so tail -f works in real time.',
+    '# Redirect output immediately so tail -f works in real time.',
     'mkdir -p "$PBS_O_WORKDIR/logs"',
     'exec > "$PBS_O_WORKDIR/logs/run.log" 2>&1',
     '',
-    '# PBS_O_WORKDIR = this case directory (qsub submitted from here)',
     'NPROCS=$(wc -l < $PBS_NODEFILE)',
     'PYTHON="$HOME/miniconda3/envs/tri_engine_complex/bin/python"',
     '',
     f'echo "ENDGAME case: {tag}  Job: $PBS_JOBID  Ranks: $NPROCS"',
+    'echo "Nodes: $(sort -u $PBS_NODEFILE | tr \'\\n\' \' \')"',
     '',
     'export PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1',
     f'export ENDGAME_NX={N} ENDGAME_Q={Q}',
     f'export ENDGAME_MODES={MODES} ENDGAME_NCV={NCV} ENDGAME_TARGET={TARGET}',
+    f'export ENDGAME_IMAG_SHIFT={imag_shift}',
     '',
-    '$(dirname "$PYTHON")/mpiexec -n $NPROCS --bind-to none --hostfile $PBS_NODEFILE \\',
+    '$(dirname "$PYTHON")/mpiexec --prefix $(dirname $(dirname "$PYTHON")) \\',
+    '    -n $NPROCS --bind-to none --hostfile $PBS_NODEFILE \\',
+    '    --mca btl ^openib \\',
     '    -x PYTHONDONTWRITEBYTECODE \\',
     '    -x OMP_NUM_THREADS -x OPENBLAS_NUM_THREADS \\',
     '    -x ENDGAME_NX -x ENDGAME_Q \\',
     '    -x ENDGAME_MODES -x ENDGAME_NCV -x ENDGAME_TARGET \\',
+    '    -x ENDGAME_IMAG_SHIFT \\',
     '    "$PYTHON" -u "$PBS_O_WORKDIR/main.py"',
 ]
 
@@ -88,5 +89,9 @@ os.chmod(run_path, 0o755)
 # end will get errno 116 "Stale file handle" and the results will
 # be lost. Each case directory is permanent for the lifetime of its job.
 
-print(f"Created: {case_dir}")
-print(f"Submit:  cd '{case_dir}' && qsub run.sh")
+shift_note = f"  Imag shift : {imag_shift}  ← complex eigenvalues active" if imag_shift else ""
+print(f"Created : {case_dir}")
+print(f"  Nodes={nodes}  ppn={ppn}  ranks={P}  N={N}  NCV={NCV}  modes={MODES}")
+if shift_note:
+    print(shift_note)
+print(f"Submit  : cd '{case_dir}' && qsub run.sh")
