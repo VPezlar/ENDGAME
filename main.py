@@ -8,7 +8,8 @@ import petsc4py
 petsc4py.init(sys.argv)
 from mpi4py import MPI
 
-from src.operators import assemble_matrices
+from petsc4py import PETSc
+from src.operators import assemble_distributed
 from src.solver import solve_evp
 
 # ==========================================
@@ -51,23 +52,24 @@ if __name__ == "__main__":
         print("==========================================")
         print(f"\n[1/3] Assembling operators...")
 
-    # All cores assemble the baseline SciPy operators
+    # Each rank assembles only its owned PETSc rows — no global matrix ever built
     t0 = time.time()
-    A_global, B_global, x, y, z = assemble_matrices(
+    A_petsc, B_petsc, x, y, z = assemble_distributed(
         Nx, Ny, Nz, q, xi_half, eta_half, zeta_half
     )
     t_assemble = time.time() - t0
 
+    # getInfo(GLOBAL_SUM) is collective — all ranks must participate
+    info  = A_petsc.getInfo(PETSc.Mat.InfoType.GLOBAL_SUM)
     if rank == 0:
-        nnz_A   = A_global.nnz
+        nnz_A   = int(info['nz_used'])
         density = 100.0 * nnz_A / N_total**2
         print(f"  Done in {t_assemble:.2f}s")
         print(f"  A: {N_total}×{N_total},  nnz={nnz_A:,}  ({density:.4f}% fill)")
-        print(f"\n[2/3] Distributing matrices and running SLEPc...")
+        print(f"\n[2/3] Running SLEPc eigensolver...")
 
-    # SLEPc handles MPI distribution automatically inside this function
     int_metrics, lambda_sq, evecs = solve_evp(
-        A_global, B_global, target_metric, num_modes, krylov_size
+        A_petsc, B_petsc, target_metric, num_modes, krylov_size
     )
 
     # 3. I/O Export (Strictly isolated to Rank 0)
