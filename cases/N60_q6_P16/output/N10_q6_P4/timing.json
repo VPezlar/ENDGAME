@@ -12,8 +12,8 @@
   "num_modes": 5,
   "krylov_size": 30,
   "t_assemble_s": 0.061,
-  "t_mumps_s": 0.039,
-  "t_krylov_s": 0.071,
-  "t_total_s": 0.19,
-  "nconv": 9
+  "t_mumps_s": 0.033,
+  "t_krylov_s": 0.067,
+  "t_total_s": 0.179,
+  "nconv": 10
 }

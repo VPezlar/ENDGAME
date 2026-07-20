@@ -67,7 +67,7 @@ run_lines = [
     f'export ENDGAME_NX={N} ENDGAME_Q={Q}',
     f'export ENDGAME_MODES={MODES} ENDGAME_NCV={NCV} ENDGAME_TARGET={TARGET}',
     '',
-    'mpiexec -n $NPROCS --bind-to none \\',
+    '$(dirname "$PYTHON")/mpiexec -n $NPROCS --bind-to none --hostfile $PBS_NODEFILE \\',
     '    -x PYTHONDONTWRITEBYTECODE \\',
     '    -x OMP_NUM_THREADS -x OPENBLAS_NUM_THREADS \\',
     '    -x ENDGAME_NX -x ENDGAME_Q \\',
