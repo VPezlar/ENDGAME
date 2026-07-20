@@ -68,6 +68,7 @@ run_lines = [
     f'#PBS -q {queue}',
     f'#PBS -l nodes={nodes}:ppn={ppn}',
     f'#PBS -l walltime={walltime_h:02d}:00:00',
+    f'#PBS -l pvmem=16gb',
     '#PBS -j oe',
     '',
     '# Redirect output immediately so tail -f works in real time.',
