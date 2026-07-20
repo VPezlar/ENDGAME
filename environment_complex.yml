@@ -1,0 +1,13 @@
+name: tri_engine_complex
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - numpy
+  - scipy
+  - mpi4py
+  - petsc=*=*complex*
+  - petsc4py=*=*complex*
+  - slepc=*=*complex*
+  - slepc4py=*=*complex*

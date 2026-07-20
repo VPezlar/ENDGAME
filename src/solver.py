@@ -130,7 +130,12 @@ def solve_evp(A_petsc, B_petsc, target_metric, num_modes, krylov_size):
     if rank == 0:
         # Raw eigenvalues from SLEPc are negative (Laplacian spectrum).
         # Negate to get lambda^2 = pi^2*(n^2+m^2+k^2)/4 (positive).
+        # In complex PETSc, eigenvalues are Python complex numbers.
+        # np.real() extracts real parts — correct for both real and complex builds.
+        # For Helmholtz (real symmetric) imaginary parts are ~machine precision.
         lambda_sq   = -np.real(eigenvalues_raw)
+        # Eigenvectors from complex PETSc are complex numpy arrays.
+        # np.column_stack works for both real and complex arrays.
         eigenvectors = np.column_stack(eigenvectors_raw)
 
         # Sort by closeness to the target eigenvalue.

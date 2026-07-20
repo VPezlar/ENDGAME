@@ -59,7 +59,7 @@ run_lines = [
     '',
     '# PBS_O_WORKDIR = this case directory (qsub submitted from here)',
     'NPROCS=$(wc -l < $PBS_NODEFILE)',
-    'PYTHON="$HOME/miniconda3/envs/tri_engine/bin/python"',
+    'PYTHON="$HOME/miniconda3/envs/tri_engine_complex/bin/python"',
     '',
     f'echo "ENDGAME case: {tag}  Job: $PBS_JOBID  Ranks: $NPROCS"',
     '',

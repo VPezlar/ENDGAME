@@ -185,7 +185,7 @@ def assemble_distributed(Nx, Ny, Nz, q, xi_half=0.501, eta_half=0.501, zeta_half
             # Convert the accumulated stencil dict to numpy arrays and insert into PETSc.
             # setValues(row, cols, vals) inserts a full row at once.
             cols = np.array(list(stencil.keys()),   dtype=np.int32)
-            vals = np.array(list(stencil.values()), dtype=np.float64)
+            vals = np.array(list(stencil.values()), dtype=np.complex128)  # complex build
             A_petsc.setValues(i, cols, vals)
 
             # B is diagonal: 1 at interior nodes, 0 at boundaries.
