@@ -11,9 +11,9 @@
   "target_metric": 3.0,
   "num_modes": 5,
   "krylov_size": 30,
-  "t_assemble_s": 0.058,
-  "t_mumps_s": 0.02,
-  "t_krylov_s": 0.044,
-  "t_total_s": 0.138,
-  "nconv": 6
+  "t_assemble_s": 0.061,
+  "t_mumps_s": 0.039,
+  "t_krylov_s": 0.071,
+  "t_total_s": 0.19,
+  "nconv": 9
 }
