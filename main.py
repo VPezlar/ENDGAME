@@ -15,7 +15,7 @@ from src.solver import solve_evp
 # Master Controls
 # ==========================================
 Nx, Ny, Nz = 30, 30, 30      # Grid points per direction
-q = 6                          # FD stencil half-width
+q = 6                          # FD stencil size (Fornberg form — full number of points in the stencil)
 
 xi_half, eta_half, zeta_half = 0.501, 0.501, 0.501   # BL stretching half-domain
 
