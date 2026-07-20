@@ -1,0 +1,19 @@
+{
+  "run_tag": "N100_q6_P128",
+  "Nx": 100,
+  "Ny": 100,
+  "Nz": 100,
+  "q": 6,
+  "mpi_ranks": 128,
+  "N_total": 1030301,
+  "N_interior": 970299,
+  "nnz_A": 18495683,
+  "target_metric": 43.0,
+  "num_modes": 100,
+  "krylov_size": 300,
+  "t_assemble_s": 0.688,
+  "t_mumps_s": 127.322,
+  "t_krylov_s": 600.654,
+  "t_total_s": 794.494,
+  "nconv": 144
+}

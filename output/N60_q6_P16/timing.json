@@ -1,0 +1,19 @@
+{
+  "run_tag": "N60_q6_P16",
+  "Nx": 60,
+  "Ny": 60,
+  "Nz": 60,
+  "q": 6,
+  "mpi_ranks": 16,
+  "N_total": 226981,
+  "N_interior": 205379,
+  "nnz_A": 3923803,
+  "target_metric": 43.0,
+  "num_modes": 100,
+  "krylov_size": 300,
+  "t_assemble_s": 0.806,
+  "t_mumps_s": 67.807,
+  "t_krylov_s": 1077.391,
+  "t_total_s": 1194.375,
+  "nconv": 125
+}

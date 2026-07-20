@@ -1,0 +1,19 @@
+{
+  "run_tag": "N30_q6_P32",
+  "Nx": 30,
+  "Ny": 30,
+  "Nz": 30,
+  "q": 6,
+  "mpi_ranks": 32,
+  "N_total": 29791,
+  "N_interior": 24389,
+  "nnz_A": 468793,
+  "target_metric": 43.0,
+  "num_modes": 100,
+  "krylov_size": 300,
+  "t_assemble_s": 0.119,
+  "t_mumps_s": 1.023,
+  "t_krylov_s": 5.977,
+  "t_total_s": 9.098,
+  "nconv": 125
+}

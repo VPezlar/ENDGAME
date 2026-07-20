@@ -44,3 +44,13 @@ cases/*/run_cwd/
 cases/*/output/*/eigenvalues/*.txt
 cases/*/output/*/eigenvectors/*.csv
 cases/*/logs/
+
+# PBS stdout/stderr files (*.oJOBID, *.eJOBID)
+*.o[0-9]*
+*.e[0-9]*
+cases/*/ENDGAME_*.o*
+cases/*/ENDGAME_*.e*
+
+# Case output data (keep timing.json, ignore large files)
+cases/*/output/*/eigenvalues/
+cases/*/output/*/eigenvectors/
