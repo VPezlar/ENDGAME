@@ -22,10 +22,16 @@ FDq/output/d1.dat
 FDq/output/d2.dat
 FDq/output/eta.dat
 
-# Simulation output data (keep directory structure via .gitkeep)
+# Simulation output data: per-run subdirectories (N{N}_q{q}_P{P}/)
+# Keep timing.json files (small, useful for scaling analysis)
+# Ignore the large eigenvector/eigenvalue data files
+output/*/eigenvalues/
+output/*/eigenvectors/
+# Also cover the old flat output structure if it still exists
 output/eigenvalues/*.txt
 output/eigenvectors/*.csv
 
-# SLURM log files
+# Job log files (PBS and SLURM)
+logs/*.log
 *.log
 triglobal_*.log
