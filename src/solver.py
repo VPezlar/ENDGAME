@@ -89,11 +89,11 @@ def solve_evp(A_petsc, B_petsc, target_metric, num_modes, krylov_size):
     #                      looser values (1e-4) cut memory further if needed.
     _opts = PETSc.Options()
     _opts["mat_mumps_icntl_4"]  = 2
-    _opts["mat_mumps_icntl_14"] = 30
+    _opts["mat_mumps_icntl_14"] = 20
     _mem_mb = int(os.environ.get("ENDGAME_MUMPS_MEM_MB", 0))
     if _mem_mb > 0:
         _opts["mat_mumps_icntl_23"] = _mem_mb   # 0 = let MUMPS auto-estimate
-    _opts["mat_mumps_icntl_35"] = 2
+    _opts["mat_mumps_icntl_35"] = 0   # BLR disabled: inflates peak alloc for complex arith
     _opts["mat_mumps_cntl_7"]   = 1e-8
     t0 = time.time()
     eps.setUp()
