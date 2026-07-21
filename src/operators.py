@@ -80,9 +80,11 @@ def assemble_distributed(Nx, Ny, Nz, q, xi_half=0.501, eta_half=0.501, zeta_half
     # o_nnz: estimate for the off-diagonal block (columns owned by OTHER ranks).
     #        The z-stencil spans Nx_n*Ny_n rows between stencil nodes, so
     #        it can cross MPI partition boundaries.
-    # Using 3*q as a conservative upper bound (q entries per direction).
-    d_nnz = 3 * q
-    o_nnz = 3 * q
+    # Actual interior-row nnz = 3*(q+1) - 2 (q+1 pts per direction, shared centre).
+    # +1 safety margin covers boundary rows. Without this PETSc silently reallocates
+    # (NEW_NONZERO_ALLOCATION_ERR is disabled below), wasting assembly time.
+    d_nnz = 3 * (q + 1) + 1
+    o_nnz = 3 * (q + 1) + 1
 
     def _make_mat(diag_nnz, offdiag_nnz):
         m = PETSc.Mat().create(comm=MPI.COMM_WORLD)

@@ -70,15 +70,46 @@ def solve_evp(A_petsc, B_petsc, target_metric, num_modes, krylov_size):
     # ------------------------------------------------------------------
     # 3. MUMPS factorisation of (A - sigma*B) — one-time expensive step
     # ------------------------------------------------------------------
-    # ICNTL(14): extra workspace % above MUMPS's minimum estimate.
-    # Default=20 can cause error -13 (workspace allocation failure).
-    # 80 means MUMPS pre-allocates 80% extra — robust fix for error -13.
-    PETSc.Options()["mat_mumps_icntl_14"] = 80
+    # MUMPS memory controls (must be set before eps.setUp() triggers factorisation):
+    #   ICNTL(4)  = 2    : print analysis phase stats (memory estimates to stdout)
+    #   ICNTL(14) = 30   : 30% extra workspace above minimum estimate; 80 was too
+    #                      aggressive — under a hard pvmem cap it inflates the
+    #                      up-front allocation above the limit and manufactures -13.
+    #   ICNTL(23) = 12500: hard per-rank budget in MB (~16 GB pvmem − 3.5 GB for
+    #                      Python / PETSc / UCX / eigenvectors). MUMPS allocates
+    #                      exactly this; if the factorisation needs more it returns
+    #                      a clean -9 with the shortfall reported.
+    #   ICNTL(35) = 2    : BLR (Block Low-Rank) off-diagonal compression, typically
+    #                      1.5–3× memory reduction and often faster factorisation.
+    #                      Safe here: SLEPc evaluates residuals with exact A/B, so
+    #                      BLR error in (A-σB)^{-1} just costs a few extra Krylov
+    #                      iterations at most.
+    #   CNTL(7)   = 1e-8 : BLR accuracy threshold (τ). 1e-8 is conservative;
+    #                      looser values (1e-4) cut memory further if needed.
+    _opts = PETSc.Options()
+    _opts["mat_mumps_icntl_4"]  = 2
+    _opts["mat_mumps_icntl_14"] = 30
+    _opts["mat_mumps_icntl_23"] = 12500
+    _opts["mat_mumps_icntl_35"] = 2
+    _opts["mat_mumps_cntl_7"]   = 1e-8
     t0 = time.time()
     eps.setUp()
     t_mumps = time.time() - t0
+    # Read MUMPS post-factorisation memory statistics (INFOG array, MB per rank):
+    #   INFOG(16): maximum estimated memory requirement across all ranks
+    #   INFOG(18): actual memory used by the stored factors
+    mumps_mem_est_mb  = -1
+    mumps_mem_used_mb = -1
+    try:
+        _F = st.getKSP().getPC().getFactorMatrix()
+        mumps_mem_est_mb  = _F.getMumpsInfog(16)
+        mumps_mem_used_mb = _F.getMumpsInfog(18)
+    except Exception:
+        pass
     if rank == 0:
         print(f"  MUMPS factorization      : {t_mumps:.2f}s")
+        if mumps_mem_est_mb >= 0:
+            print(f"  MUMPS mem est/used (MB)  : {mumps_mem_est_mb} / {mumps_mem_used_mb}")
 
     # ------------------------------------------------------------------
     # 4. Krylov-Schur iterations
@@ -156,7 +187,9 @@ def solve_evp(A_petsc, B_petsc, target_metric, num_modes, krylov_size):
 
         timing = {"t_mumps_s": round(t_mumps, 3),
                   "t_krylov_s": round(t_krylov, 3),
-                  "nconv": nconv}
+                  "nconv": nconv,
+                  "mumps_mem_est_mb": mumps_mem_est_mb,
+                  "mumps_mem_used_mb": mumps_mem_used_mb}
         return analytical_integers, lambda_sq, eigenvectors, timing
     else:
         return None, None, None, {}
