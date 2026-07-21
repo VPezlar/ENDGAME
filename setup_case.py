@@ -28,6 +28,7 @@ ppn        = int(sys.argv[5]) if len(sys.argv) > 5 else 16
 imag_shift = float(sys.argv[6]) if len(sys.argv) > 6 else 0.0
 Ny         = int(sys.argv[7]) if len(sys.argv) > 7 else Nx
 Nz         = int(sys.argv[8]) if len(sys.argv) > 8 else Nx
+mumps_mem_mb = int(sys.argv[9]) if len(sys.argv) > 9 else 0
 nodes      = (P + ppn - 1) // ppn
 
 Q, MODES, NCV, TARGET = 6, 40, 100, 43.0
@@ -94,7 +95,7 @@ run_lines += [
     f'export ENDGAME_Q={Q}',
     f'export ENDGAME_MODES={MODES} ENDGAME_NCV={NCV} ENDGAME_TARGET={TARGET}',
     f'export ENDGAME_IMAG_SHIFT={imag_shift}',
-    'export ENDGAME_MUMPS_MEM_MB=12500',
+    f'export ENDGAME_MUMPS_MEM_MB={mumps_mem_mb}',
     '',
     '$(dirname "$PYTHON")/mpiexec --prefix $(dirname $(dirname "$PYTHON")) \\',
     '    -n $NPROCS --bind-to none --hostfile $PBS_NODEFILE \\',
