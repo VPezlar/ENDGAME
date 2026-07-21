@@ -43,13 +43,17 @@ class TriGlobalCoefficients:
         self._build_operators()
 
     def _build_operators(self):
+        # ---------------------------------------------------------
         # ROW 1: CONTINUITY
+        # ---------------------------------------------------------
         self.A[0][0] = {'I': self.U_x + self.V_y + self.W_z, 'Dx': self.U, 'Dy': self.V, 'Dz': self.W}
         self.A[0][1] = {'I': self.RHO_x, 'Dx': self.RHO}
         self.A[0][2] = {'I': self.RHO_y, 'Dy': self.RHO}
         self.A[0][3] = {'I': self.RHO_z, 'Dz': self.RHO}
 
+        # ---------------------------------------------------------
         # ROW 2: X-MOMENTUM
+        # ---------------------------------------------------------
         self.A[1][0] = {'I': self.U * self.U_x + self.V * self.U_y + self.W * self.U_z + (1.0 / self.gM2) * self.T_x, 'Dx': self.T / self.gM2}
         self.A[1][1] = {
             'I': self.RHO * self.U_x, 'Dx': self.RHO * self.U - (4.0 * self.MU_x) / (3.0 * self.Re),
@@ -65,7 +69,9 @@ class TriGlobalCoefficients:
             'Dy': - (self.MU_T / self.Re) * (self.U_y + self.V_x), 'Dz': - (self.MU_T / self.Re) * (self.U_z + self.W_x)
         }
 
+        # ---------------------------------------------------------
         # ROW 3: Y-MOMENTUM
+        # ---------------------------------------------------------
         self.A[2][0] = {'I': self.U * self.V_x + self.V * self.V_y + self.W * self.V_z + (1.0 / self.gM2) * self.T_y, 'Dy': self.T / self.gM2}
         self.A[2][1] = {'I': self.RHO * self.V_x, 'Dx': - (2.0 * self.MU_y) / (3.0 * self.Re), 'Dy': - self.MU_x / self.Re, 'Dxy': - self.MU / (3.0 * self.Re)}
         self.A[2][2] = {
@@ -82,7 +88,9 @@ class TriGlobalCoefficients:
             'Dz': - (self.MU_T / self.Re) * (self.V_z + self.W_y)
         }
 
+        # ---------------------------------------------------------
         # ROW 4: Z-MOMENTUM
+        # ---------------------------------------------------------
         self.A[3][0] = {'I': self.U * self.W_x + self.V * self.W_y + self.W * self.W_z + (1.0 / self.gM2) * self.T_z, 'Dz': self.T / self.gM2}
         self.A[3][1] = {'I': self.RHO * self.W_x, 'Dx': - (2.0 * self.MU_z) / (3.0 * self.Re), 'Dz': - self.MU_x / self.Re, 'Dxz': - self.MU / (3.0 * self.Re)}
         self.A[3][2] = {'I': self.RHO * self.W_y, 'Dy': - (2.0 * self.MU_z) / (3.0 * self.Re), 'Dz': - self.MU_y / self.Re, 'Dyz': - self.MU / (3.0 * self.Re)}
@@ -98,7 +106,9 @@ class TriGlobalCoefficients:
             'Dz': self.RHO / self.gM2 - (2.0 * self.MU_T / (3.0 * self.Re)) * (2.0 * self.W_z - self.V_y - self.U_x)
         }
 
+        # ---------------------------------------------------------
         # ROW 5: ENERGY
+        # ---------------------------------------------------------
         gamma_1 = self.gamma - 1.0
         M2_term = 2.0 * self.gamma * gamma_1 * (self.M**2) * self.MU / self.Re
         self.A[4][0] = {'I': self.gamma * (self.T_x * self.U + self.T_y * self.V + self.T_z * self.W), 'Dx': -gamma_1 * self.T * self.U, 'Dy': -gamma_1 * self.T * self.V, 'Dz': -gamma_1 * self.T * self.W}
@@ -108,14 +118,16 @@ class TriGlobalCoefficients:
         dissipation = ((4.0/3.0)*(self.U_x**2 + self.V_y**2 + self.W_z**2 - self.U_x*self.V_y - self.U_x*self.W_z - self.V_y*self.W_z) 
                        + self.U_y**2 + self.V_x**2 + self.U_z**2 + self.W_x**2 + self.V_z**2 + self.W_y**2 + 2.0*self.U_y*self.V_x + 2.0*self.U_z*self.W_x + 2.0*self.V_z*self.W_y)
         self.A[4][4] = {
-            'I': -gamma_1 * (self.RHO_y * self.V + self.RHO_z * self.W) - (self.gamma / self.RePr) * (self.K_T * (self.T_yy + self.T_zz) + self.K_TT * (self.T_x**2 + self.T_y**2 + self.T_z**2)) - (self.gamma * gamma_1 * (self.M**2) * self.MU_T / self.Re) * dissipation,
+            'I': -gamma_1 * (self.RHO_x * self.U + self.RHO_y * self.V + self.RHO_z * self.W) - (self.gamma / self.RePr) * (self.K_T * (self.T_xx + self.T_yy + self.T_zz) + self.K_TT * (self.T_x**2 + self.T_y**2 + self.T_z**2)) - (self.gamma * gamma_1 * (self.M**2) * self.MU_T / self.Re) * dissipation,
             'Dx': self.RHO * self.U - (2.0 * self.gamma / self.RePr) * self.K_T * self.T_x,
             'Dy': self.RHO * self.V - (2.0 * self.gamma / self.RePr) * self.K_T * self.T_y,
             'Dz': self.RHO * self.W - (2.0 * self.gamma / self.RePr) * self.K_T * self.T_z,
             'Dxx': - (self.gamma / self.RePr) * self.K, 'Dyy': - (self.gamma / self.RePr) * self.K, 'Dzz': - (self.gamma / self.RePr) * self.K
         }
 
+        # ---------------------------------------------------------
         # B OPERATOR (Mass Matrix)
+        # ---------------------------------------------------------
         self.B[0][0] = {'I': np.ones_like(self.RHO)}
         self.B[1][1] = {'I': self.RHO}
         self.B[2][2] = {'I': self.RHO}
@@ -123,7 +135,12 @@ class TriGlobalCoefficients:
         self.B[4][0] = {'I': -gamma_1 * self.T}
         self.B[4][4] = {'I': self.RHO}
 
+
 def assemble_distributed(Nx, Ny, Nz, q, baseflow, params, xi_half=0.501, eta_half=0.501, zeta_half=0.501, imag_shift=0.0):
+    """
+    Assemble the TriGlobal Navier-Stokes operators directly into PETSc MPIAIJ format.
+    Handles the 5x5 block system using physical dictionaries for pointwise insertion.
+    """
     Nx_n, Ny_n, Nz_n = Nx + 1, Ny + 1, Nz + 1
     N_nodes = Nx_n * Ny_n * Nz_n
     N_sys = N_nodes * 5  # 5 equations: rho, u, v, w, T
@@ -155,7 +172,7 @@ def assemble_distributed(Nx, Ny, Nz, q, baseflow, params, xi_half=0.501, eta_hal
 
     coeff = TriGlobalCoefficients(baseflow, params)
 
-    # 5 equations * 3stencils (approx) * (q+1)
+    # Preallocation estimate: 5 equations * approx 3 stencils * (q+1) entries
     d_nnz = 15 * (q + 1) + 1
     o_nnz = 15 * (q + 1) + 1
 
@@ -181,10 +198,10 @@ def assemble_distributed(Nx, Ny, Nz, q, baseflow, params, xi_half=0.501, eta_hal
         iy = int((i // Nx_n) % Ny_n)
         iz = int(i // (Nx_n * Ny_n))
 
-        # DIRICHLET BCs - Enforced strongly at inflow and all other boundaries.
+        # DIRICHLET BCs - Enforced strongly at inflow and all other physical boundaries.
         if ix == 0 or ix == Nx or iy == 0 or iy == Ny or iz == 0 or iz == Nz:
             A_petsc.setValue(I_global, I_global, 1.0)
-            continue # Leave B_petsc at 0.0 to exclude from spectrum
+            continue # Leave B_petsc at 0.0 to exclude boundary modes from the spectrum
 
         for var_idx in range(5):
             block_A = coeff.A[eq_idx][var_idx]
@@ -230,7 +247,7 @@ def assemble_distributed(Nx, Ny, Nz, q, baseflow, params, xi_half=0.501, eta_hal
                     J_global = var_idx * N_nodes + (ix + iy * Nx_n + int(dzz.indices[k]) * Nx_n * Ny_n)
                     A_petsc.setValue(I_global, J_global, block_A['Dzz'][i] * float(dzz.data[k]), PETSc.InsertMode.ADD_VALUES)
 
-            # Cross Derivatives (Nested Kronecker)
+            # Cross Derivatives (Nested Kronecker mapping)
             if 'Dxy' in block_A:
                 for k_x in range(int(dx.indptr[ix]), int(dx.indptr[ix + 1])):
                     for k_y in range(int(dy.indptr[iy]), int(dy.indptr[iy + 1])):
@@ -253,6 +270,7 @@ def assemble_distributed(Nx, Ny, Nz, q, baseflow, params, xi_half=0.501, eta_hal
     A_petsc.assemblyBegin(); A_petsc.assemblyEnd()
     B_petsc.assemblyBegin(); B_petsc.assemblyEnd()
 
+    # Apply global frequency shift to the spectrum if requested
     if imag_shift != 0.0:
         A_petsc.axpy(1j * imag_shift, B_petsc)
         A_petsc.assemblyBegin(); A_petsc.assemblyEnd()
