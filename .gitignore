@@ -54,3 +54,10 @@ cases/*/ENDGAME_*.e*
 # Case output data (keep timing.json, ignore large files)
 cases/*/output/*/eigenvalues/
 cases/*/output/*/eigenvectors/
+
+# Top-level run artifacts (generated at runtime, not source)
+jobs/
+logs/
+output/
+run_cwd/
+testing_and_build_note.txt

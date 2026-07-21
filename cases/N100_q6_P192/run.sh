@@ -2,7 +2,8 @@
 #PBS -N ENDGAME_N100_q6_P192
 #PBS -q zeus_all_q
 #PBS -l nodes=12:ppn=16
-#PBS -l walltime=01:00:00
+#PBS -l walltime=02:00:00
+#PBS -l pvmem=16gb
 #PBS -j oe
 
 # Redirect output immediately so tail -f works in real time.

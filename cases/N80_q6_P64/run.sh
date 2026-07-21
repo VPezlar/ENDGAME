@@ -1,8 +1,8 @@
 #!/bin/bash
-#PBS -N ENDGAME_N107_q6_P32
+#PBS -N ENDGAME_N80_q6_P64
 #PBS -q zeus_all_q
-#PBS -l nodes=8:ppn=4
-#PBS -l walltime=03:00:00
+#PBS -l nodes=4:ppn=16
+#PBS -l walltime=02:00:00
 #PBS -l pvmem=16gb
 #PBS -j oe
 
@@ -13,13 +13,13 @@ exec > "$PBS_O_WORKDIR/logs/run.log" 2>&1
 NPROCS=$(wc -l < $PBS_NODEFILE)
 PYTHON="$HOME/miniconda3/envs/tri_engine_complex/bin/python"
 
-echo "ENDGAME case: N107_q6_P32  Job: $PBS_JOBID  Ranks: $NPROCS"
+echo "ENDGAME case: N80_q6_P64  Job: $PBS_JOBID  Ranks: $NPROCS"
 echo "Nodes: $(sort -u $PBS_NODEFILE | tr '\n' ' ')"
 
 export PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
 # Route MPI through UCX/InfiniBand (avoids TCP BTL multi-NIC confusion)
 export OMPI_MCA_pml=ucx OMPI_MCA_osc=ucx OMPI_MCA_btl=self,vader
-export ENDGAME_NX=107
+export ENDGAME_NX=80
 export ENDGAME_Q=6
 export ENDGAME_MODES=40 ENDGAME_NCV=100 ENDGAME_TARGET=43.0
 export ENDGAME_IMAG_SHIFT=0.0
