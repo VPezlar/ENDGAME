@@ -1,86 +1,39 @@
 import sys
 import numpy as np
-import os
 import time
+import os
 from mpi4py import MPI
 from petsc4py import PETSc
 from slepc4py import SLEPc
 
-
-def solve_evp(A_petsc, B_petsc, target_metric, num_modes, krylov_size):
-    """
-    Solve the generalised eigenvalue problem  A x = lambda B x  using SLEPc.
-
-    Strategy: Krylov-Schur with shift-and-invert spectral transformation.
-    (A - sigma*B) is factorised once by MUMPS in parallel across all MPI ranks.
-    Each subsequent Krylov step is then a cheap triangular solve.
-
-    Returns a 4-tuple on rank 0:
-        (analytical_integers, lambda_sq, eigenvectors, timing_dict)
-    Returns (None, None, None, {}) on all other ranks.
-    """
+def solve_evp(A_petsc, B_petsc, target_sigma, num_modes, krylov_size):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
 
-    # Spectral shift: analytical Helmholtz eigenvalues are lambda = -pi^2*M/4,
-    # so we shift to sigma = -target_metric*pi^2/4.
-    target_sigma = -target_metric * (np.pi**2 / 4)
-
     if rank == 0:
         print(f"Executing SLEPc MPI solver...")
-        print(f"  Target Metric: {target_metric} | Target Shift: {target_sigma:.4f}")
+        print(f"  Target Shift: {target_sigma:.4f}")
         print(f"  Modes: {num_modes} | NCV: {krylov_size}")
 
     solver_start = time.time()
 
-    # ------------------------------------------------------------------
-    # 1. Configure Krylov-Schur eigensolver
-    # ------------------------------------------------------------------
-    # EPS = Eigenvalue Problem Solver — SLEPc's main driver object.
     eps = SLEPc.EPS().create(comm=comm)
     eps.setOperators(A_petsc, B_petsc)
-
-    # GNHEP = Generalised Non-Hermitian EVP.
-    # Used instead of GHEP because B is singular (zero rows at boundary nodes).
     eps.setProblemType(SLEPc.EPS.ProblemType.GNHEP)
-
-    # nev = number of eigenpairs requested.
-    # ncv = Krylov subspace size; larger -> fewer restarts but more memory per step.
     eps.setDimensions(nev=num_modes, ncv=krylov_size)
     eps.setTarget(target_sigma)
-    # TARGET_MAGNITUDE: find eigenvalues whose |lambda| is closest to |sigma|.
     eps.setWhichEigenpairs(SLEPc.EPS.Which.TARGET_MAGNITUDE)
 
-    # ------------------------------------------------------------------
-    # 2. Shift-and-invert via MUMPS direct solver
-    # ------------------------------------------------------------------
-    # ST = Spectral Transformation: C = (A - sigma*B)^{-1} B.
-    # Eigenvalues lambda near sigma -> large theta = 1/(lambda-sigma) -> easy to find.
     st = eps.getST()
     st.setType(SLEPc.ST.Type.SINVERT)
     st.setShift(target_sigma)
-
+    
     ksp = st.getKSP()
-    # 'preonly': no iterative refinement — the LU factorisation IS the solve.
     ksp.setType('preonly')
     pc = ksp.getPC()
     pc.setType('lu')
-    # MUMPS: Multifrontal Massively Parallel Sparse Solver — distributed LU.
     pc.setFactorSolverType('mumps')
 
-    # ------------------------------------------------------------------
-    # 3. MUMPS factorisation of (A - sigma*B) — one-time expensive step
-    # ------------------------------------------------------------------
-    # Under SLEPc's Shift-and-Invert ST, PETSc propagates the ST's KSP prefix
-    # onto the factor matrix (factor.c:14-15, stsles.c:404-405).  Plain
-    # "mat_mumps_*" therefore goes unused; the live keys are "{pfx}mat_mumps_*"
-    # where pfx is whatever getOptionsPrefix() returns (typically "st_").
-    #
-    # MUMPS options (verified spelling against petsc-3.21 mumps.c:2080+):
-    #   ICNTL(4)  = 2  : verbosity — prints analysis/factorisation banners
-    #   ICNTL(14) = 20 : workspace headroom (factory default; explicit for clarity)
-    #   ICNTL(23) = X  : per-rank memory cap in MB (0 = MUMPS auto-estimates)
-    #   ICNTL(35) = 0  : BLR off for baseline study; test separately after
     pfx = ksp.getOptionsPrefix() or ""
     _opts = PETSc.Options()
     _opts[f"{pfx}mat_mumps_icntl_4"]  = 2
@@ -89,55 +42,35 @@ def solve_evp(A_petsc, B_petsc, target_metric, num_modes, krylov_size):
     if _mem_mb > 0:
         _opts[f"{pfx}mat_mumps_icntl_23"] = _mem_mb
     _opts[f"{pfx}mat_mumps_icntl_35"] = 0
+
     t0 = time.time()
     eps.setUp()
     t_mumps = time.time() - t0
-    # Read MUMPS post-factorisation memory statistics (INFOG array, MB per rank):
-    #   INFOG(16): max estimated memory/rank after analysis phase (MB)
-    #   INFOG(21): max memory *effectively used* across ranks after factorisation
-    #              (INFOG(18) = allocated = ICNTL(23) budget, so it is always
-    #               constant and carries no information when ICNTL(23) is set)
-    mumps_mem_est_mb  = -1
-    mumps_mem_used_mb = -1
+
+    mumps_mem_est_mb, mumps_mem_used_mb = -1, -1
     try:
         _F = st.getKSP().getPC().getFactorMatrix()
         mumps_mem_est_mb  = _F.getMumpsInfog(16)
         mumps_mem_used_mb = _F.getMumpsInfog(21)
     except Exception:
         pass
+
     if rank == 0:
         print(f"  MUMPS factorization      : {t_mumps:.2f}s")
-        if mumps_mem_est_mb >= 0:
-            print(f"  MUMPS mem est/used (MB)  : {mumps_mem_est_mb} / {mumps_mem_used_mb}")
 
-    # ------------------------------------------------------------------
-    # 4. Krylov-Schur iterations
-    # ------------------------------------------------------------------
     t0 = time.time()
     eps.solve()
     t_krylov = time.time() - t0
-    solver_end = time.time()
+
     if rank == 0:
         print(f"  Krylov-Schur solve       : {t_krylov:.2f}s")
-        print(f"  Total solver wall time   : {solver_end - solver_start:.2f}s")
+        print(f"  Total solver wall time   : {time.time() - solver_start:.2f}s")
 
-    # ------------------------------------------------------------------
-    # 5. Release MUMPS factors before gathering eigenvectors
-    # ------------------------------------------------------------------
-    # Rank 0 will accumulate nconv full eigenvectors (N×16 B each) while
-    # the factor store is still alive. Under pvmem=16gb that can push the
-    # process over the cap at [3/3] Exporting after a successful multi-hour
-    # solve. pc.reset() destroys the stored LU factors immediately; SLEPc's
-    # Krylov-Schur basis is held inside EPS (not in the PC) so getEigenpair()
-    # only needs the saved Ritz values and the Krylov basis — no re-solve.
     try:
         st.getKSP().getPC().reset()
     except Exception:
         pass
 
-    # ------------------------------------------------------------------
-    # 6. Gather distributed eigenvectors back to Rank 0
-    # ------------------------------------------------------------------
     nconv = eps.getConverged()
     if rank == 0:
         print(f"  Converged modes          : {nconv} / {num_modes} requested")
@@ -146,63 +79,31 @@ def solve_evp(A_petsc, B_petsc, target_metric, num_modes, krylov_size):
     eigenvectors_raw = []
 
     if nconv > 0:
-        # vr/vi: distributed vectors compatible with A (real/imaginary parts).
         vr, vi = A_petsc.createVecs()
-        # Scatter: collects the full distributed vector onto rank 0 sequentially.
         scatter, v_seq = PETSc.Scatter.toZero(vr)
-
         for i in range(min(num_modes, nconv)):
-            # getEigenpair fills vr/vi with the i-th eigenvector (distributed).
             val = eps.getEigenpair(i, vr, vi)
-            # FORWARD scatter: distributed vr -> sequential v_seq on rank 0.
-            scatter.scatter(vr, v_seq, PETSc.InsertMode.INSERT,
-                            PETSc.ScatterMode.FORWARD)
+            scatter.scatter(vr, v_seq, PETSc.InsertMode.INSERT, PETSc.ScatterMode.FORWARD)
             if rank == 0:
                 eigenvalues_raw.append(val)
                 eigenvectors_raw.append(v_seq.getArray().copy())
-
-        # Explicit destroy to release PETSc memory immediately.
-        # Python GC will eventually collect these, but in a long scaling study
-        # it is better to be explicit to prevent accumulation.
+        
         scatter.destroy()
         vr.destroy()
         vi.destroy()
         v_seq.destroy()
 
-    # Destroy the eigensolver and free its internal Krylov vectors.
     eps.destroy()
 
-    # ------------------------------------------------------------------
-    # 7. Post-processing on Rank 0
-    # ------------------------------------------------------------------
     if rank == 0:
-        # Raw eigenvalues from SLEPc are negative (Laplacian spectrum).
-        # Negate to get lambda^2 = pi^2*(n^2+m^2+k^2)/4 (positive).
-        # In complex PETSc, eigenvalues are Python complex numbers.
-        # np.real() extracts real parts — correct for both real and complex builds.
-        # For Helmholtz (real symmetric) imaginary parts are ~machine precision.
-        lambda_sq   = -np.real(eigenvalues_raw)
-        # Print imaginary parts if non-trivial — proves complex arithmetic is active
-        _imag = np.imag(np.array(eigenvalues_raw, dtype=complex))
-        if np.any(np.abs(_imag) > 1e-10):
-            print(f"  Im(eigenvalues)[:3] = {_imag[:3]}  << complex arithmetic confirmed >>", flush=True)
-        # Eigenvectors from complex PETSc are complex numpy arrays.
-        # np.column_stack works for both real and complex arrays.
+        evals = np.array(eigenvalues_raw, dtype=complex)
         eigenvectors = np.column_stack(eigenvectors_raw)
-
-        # Sort by closeness to the target eigenvalue.
-        sort_idx     = np.argsort(np.abs(lambda_sq - (-target_sigma)))
-        lambda_sq    = lambda_sq[sort_idx]
+        
+        sort_idx = np.argsort(np.abs(evals - target_sigma))
+        evals = evals[sort_idx]
         eigenvectors = eigenvectors[:, sort_idx]
 
-        # Integer metric M = n^2+m^2+k^2 (exact integer for the analytical answer).
-        analytical_integers = lambda_sq / (np.pi**2 / 4)
-
-        timing = {"t_mumps_s": round(t_mumps, 3),
-                  "t_krylov_s": round(t_krylov, 3),
-                  "nconv": nconv,
-                  "mumps_mem_est_mb": mumps_mem_est_mb,
-                  "mumps_mem_used_mb": mumps_mem_used_mb}
-        return analytical_integers, lambda_sq, eigenvectors, timing
+        timing = {"t_mumps_s": round(t_mumps, 3), "t_krylov_s": round(t_krylov, 3)}
+        return None, evals, eigenvectors, timing
     else:
         return None, None, None, {}
