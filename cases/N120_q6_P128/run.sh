@@ -1,8 +1,8 @@
 #!/bin/bash
-#PBS -N ENDGAME_N68_q6_P64
+#PBS -N ENDGAME_N120_q6_P128
 #PBS -q zeus_all_q
-#PBS -l nodes=4:ppn=80
-#PBS -l walltime=02:00:00
+#PBS -l nodes=8:ppn=80
+#PBS -l walltime=03:00:00
 #PBS -j oe
 
 # --- Output routing -------------------------------------------------------
@@ -13,11 +13,11 @@ exec > "$PBS_O_WORKDIR/logs/run.log" 2>"$PBS_O_WORKDIR/logs/run.err"
 # --- Node setup -----------------------------------------------------------
 # ppn=80 reserves the full node (80 physical cores) -> exclusive access.
 # We only launch ppn_mpi=16 MPI ranks per node; build a proper hostfile.
-NPROCS=64
+NPROCS=128
 PPN_MPI=16
 PYTHON="$HOME/miniconda3/envs/tri_engine_complex/bin/python"
 
-echo "ENDGAME case: N68_q6_P64  Job: $PBS_JOBID  Ranks: $NPROCS"
+echo "ENDGAME case: N120_q6_P128  Job: $PBS_JOBID  Ranks: $NPROCS"
 echo "Nodes: $(sort -u $PBS_NODEFILE | tr '\n' ' ')"
 
 # Build mpiexec hostfile: PPN_MPI entries per unique node
@@ -30,7 +30,7 @@ done > "$MPI_HOSTFILE"
 export PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
 export OMPI_MCA_pml=ucx OMPI_MCA_osc=ucx OMPI_MCA_btl=self,vader
 export UCX_LOG_LEVEL=error
-export ENDGAME_NX=68
+export ENDGAME_NX=120
 export ENDGAME_Q=6
 export ENDGAME_MODES=40 ENDGAME_NCV=100 ENDGAME_TARGET=43.0
 export ENDGAME_IMAG_SHIFT=0.0

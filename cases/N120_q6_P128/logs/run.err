@@ -1,0 +1,7 @@
+--------------------------------------------------------------------------
+Primary job  terminated normally, but 1 process returned
+a non-zero exit code. Per user-direction, the job has been aborted.
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+mpiexec noticed that process rank 125 with PID 4137766 on node n024 exited on signal 9 (Killed).
+--------------------------------------------------------------------------

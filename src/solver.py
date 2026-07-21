@@ -71,30 +71,24 @@ def solve_evp(A_petsc, B_petsc, target_metric, num_modes, krylov_size):
     # ------------------------------------------------------------------
     # 3. MUMPS factorisation of (A - sigma*B) — one-time expensive step
     # ------------------------------------------------------------------
-    # MUMPS memory controls (must be set before eps.setUp() triggers factorisation):
-    #   ICNTL(4)  = 2    : print analysis phase stats (memory estimates to stdout)
-    #   ICNTL(14) = 30   : 30% extra workspace above minimum estimate; 80 was too
-    #                      aggressive — under a hard pvmem cap it inflates the
-    #                      up-front allocation above the limit and manufactures -13.
-    #   ICNTL(23) = 12500: hard per-rank budget in MB (~16 GB pvmem − 3.5 GB for
-    #                      Python / PETSc / UCX / eigenvectors). MUMPS allocates
-    #                      exactly this; if the factorisation needs more it returns
-    #                      a clean -9 with the shortfall reported.
-    #   ICNTL(35) = 2    : BLR (Block Low-Rank) off-diagonal compression, typically
-    #                      1.5–3× memory reduction and often faster factorisation.
-    #                      Safe here: SLEPc evaluates residuals with exact A/B, so
-    #                      BLR error in (A-σB)^{-1} just costs a few extra Krylov
-    #                      iterations at most.
-    #   CNTL(7)   = 1e-8 : BLR accuracy threshold (τ). 1e-8 is conservative;
-    #                      looser values (1e-4) cut memory further if needed.
+    # Under SLEPc's Shift-and-Invert ST, PETSc propagates the ST's KSP prefix
+    # onto the factor matrix (factor.c:14-15, stsles.c:404-405).  Plain
+    # "mat_mumps_*" therefore goes unused; the live keys are "{pfx}mat_mumps_*"
+    # where pfx is whatever getOptionsPrefix() returns (typically "st_").
+    #
+    # MUMPS options (verified spelling against petsc-3.21 mumps.c:2080+):
+    #   ICNTL(4)  = 2  : verbosity — prints analysis/factorisation banners
+    #   ICNTL(14) = 20 : workspace headroom (factory default; explicit for clarity)
+    #   ICNTL(23) = X  : per-rank memory cap in MB (0 = MUMPS auto-estimates)
+    #   ICNTL(35) = 0  : BLR off for baseline study; test separately after
+    pfx = ksp.getOptionsPrefix() or ""
     _opts = PETSc.Options()
-    _opts["mat_mumps_icntl_4"]  = 2
-    _opts["mat_mumps_icntl_14"] = 20
+    _opts[f"{pfx}mat_mumps_icntl_4"]  = 2
+    _opts[f"{pfx}mat_mumps_icntl_14"] = 20
     _mem_mb = int(os.environ.get("ENDGAME_MUMPS_MEM_MB", 0))
     if _mem_mb > 0:
-        _opts["mat_mumps_icntl_23"] = _mem_mb   # 0 = let MUMPS auto-estimate
-    _opts["mat_mumps_icntl_35"] = 0   # BLR disabled: inflates peak alloc for complex arith
-    _opts["mat_mumps_cntl_7"]   = 1e-8
+        _opts[f"{pfx}mat_mumps_icntl_23"] = _mem_mb
+    _opts[f"{pfx}mat_mumps_icntl_35"] = 0
     t0 = time.time()
     eps.setUp()
     t_mumps = time.time() - t0

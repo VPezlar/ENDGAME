@@ -1,0 +1,27 @@
+ENDGAME case: N120_q6_P128  Job: 4469489.zeus-master  Ranks: 128
+Nodes: n017.zeus.technion.ac.il n018.zeus.technion.ac.il n019.zeus.technion.ac.il n020.zeus.technion.ac.il n021.zeus.technion.ac.il n022.zeus.technion.ac.il n023.zeus.technion.ac.il n024.zeus.technion.ac.il 
+==========================================
+ TRI-GLOBAL HPC ENGINE (PETSc/SLEPc/MPI)
+==========================================
+  Run tag      : N120_q6_P128
+  MPI ranks    : 128
+  Grid         : 120x120x120  (q=6)
+  Total DOF    : 1,771,561
+  Target metric: 43.0  ->  sigma=-106.0982
+  Modes / NCV  : 40 / 100
+  Output dir   : output/N120_q6_P128
+==========================================
+
+[1/3] Assembling operators...
+[FDq] N=120 -> D1:(121, 121)  case:/home/vojtech-p/ENDGAME/cases/N120_q6_P128
+[FDq] N=120 -> D1:(121, 121)  case:/home/vojtech-p/ENDGAME/cases/N120_q6_P128
+[FDq] N=120 -> D1:(121, 121)  case:/home/vojtech-p/ENDGAME/cases/N120_q6_P128
+  Done in 2.55s
+  A: 1771561x1771561,  nnz=32,104,423  (0.0010% fill)
+
+[2/3] Running SLEPc eigensolver...
+Executing SLEPc MPI solver...
+  Target Metric: 43.0 | Target Shift: -106.0982
+  Modes: 40 | NCV: 100
+  MUMPS factorization      : 2061.22s
+  MUMPS mem est/used (MB)  : 11279 / 8257
