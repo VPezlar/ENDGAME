@@ -22,6 +22,7 @@ export ENDGAME_NX=100
 export ENDGAME_Q=6
 export ENDGAME_MODES=40 ENDGAME_NCV=100 ENDGAME_TARGET=43.0
 export ENDGAME_IMAG_SHIFT=0.0
+export ENDGAME_MUMPS_MEM_MB=12500
 
 $(dirname "$PYTHON")/mpiexec --prefix $(dirname $(dirname "$PYTHON")) \
     -n $NPROCS --bind-to none --hostfile $PBS_NODEFILE \
@@ -31,4 +32,5 @@ $(dirname "$PYTHON")/mpiexec --prefix $(dirname $(dirname "$PYTHON")) \
     -x ENDGAME_NX -x ENDGAME_Q \
     -x ENDGAME_MODES -x ENDGAME_NCV -x ENDGAME_TARGET \
     -x ENDGAME_IMAG_SHIFT \
+    -x ENDGAME_MUMPS_MEM_MB \
     "$PYTHON" -u "$PBS_O_WORKDIR/main.py"

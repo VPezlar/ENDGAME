@@ -1,5 +1,6 @@
 import sys
 import numpy as np
+import os
 import time
 from mpi4py import MPI
 from petsc4py import PETSc
@@ -89,21 +90,25 @@ def solve_evp(A_petsc, B_petsc, target_metric, num_modes, krylov_size):
     _opts = PETSc.Options()
     _opts["mat_mumps_icntl_4"]  = 2
     _opts["mat_mumps_icntl_14"] = 30
-    _opts["mat_mumps_icntl_23"] = 12500
+    _mem_mb = int(os.environ.get("ENDGAME_MUMPS_MEM_MB", 0))
+    if _mem_mb > 0:
+        _opts["mat_mumps_icntl_23"] = _mem_mb   # 0 = let MUMPS auto-estimate
     _opts["mat_mumps_icntl_35"] = 2
     _opts["mat_mumps_cntl_7"]   = 1e-8
     t0 = time.time()
     eps.setUp()
     t_mumps = time.time() - t0
     # Read MUMPS post-factorisation memory statistics (INFOG array, MB per rank):
-    #   INFOG(16): maximum estimated memory requirement across all ranks
-    #   INFOG(18): actual memory used by the stored factors
+    #   INFOG(16): max estimated memory/rank after analysis phase (MB)
+    #   INFOG(21): max memory *effectively used* across ranks after factorisation
+    #              (INFOG(18) = allocated = ICNTL(23) budget, so it is always
+    #               constant and carries no information when ICNTL(23) is set)
     mumps_mem_est_mb  = -1
     mumps_mem_used_mb = -1
     try:
         _F = st.getKSP().getPC().getFactorMatrix()
         mumps_mem_est_mb  = _F.getMumpsInfog(16)
-        mumps_mem_used_mb = _F.getMumpsInfog(18)
+        mumps_mem_used_mb = _F.getMumpsInfog(21)
     except Exception:
         pass
     if rank == 0:
@@ -123,7 +128,21 @@ def solve_evp(A_petsc, B_petsc, target_metric, num_modes, krylov_size):
         print(f"  Total solver wall time   : {solver_end - solver_start:.2f}s")
 
     # ------------------------------------------------------------------
-    # 5. Gather distributed eigenvectors back to Rank 0
+    # 5. Release MUMPS factors before gathering eigenvectors
+    # ------------------------------------------------------------------
+    # Rank 0 will accumulate nconv full eigenvectors (N×16 B each) while
+    # the factor store is still alive. Under pvmem=16gb that can push the
+    # process over the cap at [3/3] Exporting after a successful multi-hour
+    # solve. pc.reset() destroys the stored LU factors immediately; SLEPc's
+    # Krylov-Schur basis is held inside EPS (not in the PC) so getEigenpair()
+    # only needs the saved Ritz values and the Krylov basis — no re-solve.
+    try:
+        st.getKSP().getPC().reset()
+    except Exception:
+        pass
+
+    # ------------------------------------------------------------------
+    # 6. Gather distributed eigenvectors back to Rank 0
     # ------------------------------------------------------------------
     nconv = eps.getConverged()
     if rank == 0:
@@ -160,7 +179,7 @@ def solve_evp(A_petsc, B_petsc, target_metric, num_modes, krylov_size):
     eps.destroy()
 
     # ------------------------------------------------------------------
-    # 6. Post-processing on Rank 0
+    # 7. Post-processing on Rank 0
     # ------------------------------------------------------------------
     if rank == 0:
         # Raw eigenvalues from SLEPc are negative (Laplacian spectrum).

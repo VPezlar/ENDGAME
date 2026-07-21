@@ -123,11 +123,12 @@ if __name__ == "__main__":
                 "nnz_A": nnz_A, "target_metric": target_metric,
                 "num_modes": num_modes, "krylov_size": krylov_size,
                 "t_assemble_s": round(t_assemble, 3),
-                "t_mumps_s":    solver_timing.get("t_mumps_s", -1),
-                "t_krylov_s":   solver_timing.get("t_krylov_s", -1),
                 "t_total_s":    round(total_time, 3),
-                "nconv":        solver_timing.get("nconv", -1),
             }
+            # Absorb all solver keys (t_mumps_s, t_krylov_s, nconv,
+            # mumps_mem_est_mb, mumps_mem_used_mb, ...) without per-key gets,
+            # so new fields added to solve_evp flow through automatically.
+            timing.update(solver_timing)
             with open(os.path.join(out_dir, "timing.json"), "w") as f:
                 json.dump(timing, f, indent=2)
 

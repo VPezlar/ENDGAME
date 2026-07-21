@@ -94,6 +94,7 @@ run_lines += [
     f'export ENDGAME_Q={Q}',
     f'export ENDGAME_MODES={MODES} ENDGAME_NCV={NCV} ENDGAME_TARGET={TARGET}',
     f'export ENDGAME_IMAG_SHIFT={imag_shift}',
+    'export ENDGAME_MUMPS_MEM_MB=12500',
     '',
     '$(dirname "$PYTHON")/mpiexec --prefix $(dirname $(dirname "$PYTHON")) \\',
     '    -n $NPROCS --bind-to none --hostfile $PBS_NODEFILE \\',
@@ -103,6 +104,7 @@ run_lines += [
     nx_xflags,
     '    -x ENDGAME_MODES -x ENDGAME_NCV -x ENDGAME_TARGET \\',
     '    -x ENDGAME_IMAG_SHIFT \\',
+    '    -x ENDGAME_MUMPS_MEM_MB \\',
     '    "$PYTHON" -u "$PBS_O_WORKDIR/main.py"',
 ]
 
