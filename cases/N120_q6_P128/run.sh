@@ -1,7 +1,7 @@
 #!/bin/bash
 #PBS -N ENDGAME_N120_q6_P128
 #PBS -q zeus_all_q
-#PBS -l nodes=8:ppn=80
+#PBS -l nodes=8:ppn=24
 #PBS -l walltime=03:00:00
 #PBS -j oe
 
@@ -11,7 +11,7 @@ mkdir -p "$PBS_O_WORKDIR/logs"
 exec > "$PBS_O_WORKDIR/logs/run.log" 2>"$PBS_O_WORKDIR/logs/run.err"
 
 # --- Node setup -----------------------------------------------------------
-# ppn=80 reserves the full node (80 physical cores) -> exclusive access.
+# ppn=24 of 80 physical cores reserved per node (partial exclusivity guard).
 # We only launch ppn_mpi=16 MPI ranks per node; build a proper hostfile.
 NPROCS=128
 PPN_MPI=16

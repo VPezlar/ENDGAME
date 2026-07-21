@@ -32,6 +32,7 @@ imag_shift = float(sys.argv[6]) if len(sys.argv) > 6 else 0.0
 Ny         = int(sys.argv[7]) if len(sys.argv) > 7 else Nx
 Nz         = int(sys.argv[8]) if len(sys.argv) > 8 else Nx
 mumps_mem_mb = int(sys.argv[9]) if len(sys.argv) > 9 else 0
+ppn_reserve  = int(sys.argv[10]) if len(sys.argv) > 10 else ppn  # PBS ppn (>ppn for partial exclusivity; 80=full)
 
 nodes = (P + ppn - 1) // ppn   # number of nodes needed
 
@@ -68,7 +69,7 @@ run_lines = [
     '#!/bin/bash',
     f'#PBS -N ENDGAME_{tag}',
     f'#PBS -q {queue}',
-    f'#PBS -l nodes={nodes}:ppn=80',
+    f'#PBS -l nodes={nodes}:ppn={ppn_reserve}',
     f'#PBS -l walltime={walltime_h:02d}:00:00',
     '#PBS -j oe',
     '',
@@ -78,7 +79,7 @@ run_lines = [
     'exec > "$PBS_O_WORKDIR/logs/run.log" 2>"$PBS_O_WORKDIR/logs/run.err"',
     '',
     '# --- Node setup -----------------------------------------------------------',
-    '# ppn=80 reserves the full node (80 physical cores) -> exclusive access.',
+    f'# ppn={ppn_reserve} of 80 physical cores reserved per node (partial exclusivity guard).',
     '# We only launch ppn_mpi=16 MPI ranks per node; build a proper hostfile.',
     f'NPROCS={P}',
     f'PPN_MPI={ppn}',
@@ -133,5 +134,5 @@ os.chmod(run_path, 0o755)
 N_total = (Nx+1)*(Ny+1)*(Nz+1)
 grid_str = f"{Nx}x{Ny}x{Nz}" if not (Nx == Ny == Nz) else f"{Nx}^3"
 print(f"Created : {case_dir}")
-print(f"  Grid={grid_str}  DOF≈{N_total:,}  Nodes={nodes}  ppn_mpi={ppn}  ppn_pbs=80  ranks={P}")
+print(f"  Grid={grid_str}  DOF≈{N_total:,}  Nodes={nodes}  ppn_mpi={ppn}  ppn_pbs={ppn_reserve}  ranks={P}")
 print(f"Submit  : cd '{case_dir}' && qsub run.sh")
