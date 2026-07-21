@@ -70,6 +70,10 @@ def solve_evp(A_petsc, B_petsc, target_metric, num_modes, krylov_size):
     # ------------------------------------------------------------------
     # 3. MUMPS factorisation of (A - sigma*B) — one-time expensive step
     # ------------------------------------------------------------------
+    # ICNTL(14): extra workspace % above MUMPS's minimum estimate.
+    # Default=20 can cause error -13 (workspace allocation failure).
+    # 80 means MUMPS pre-allocates 80% extra — robust fix for error -13.
+    PETSc.Options()["mat_mumps_icntl_14"] = 80
     t0 = time.time()
     eps.setUp()
     t_mumps = time.time() - t0

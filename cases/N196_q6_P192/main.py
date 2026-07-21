@@ -68,8 +68,8 @@ if __name__ == "__main__":
             print(f"  Total DOF    : {N_total:,}")
             print(f"  Target metric: {target_metric}  ->  sigma={target_sigma:.4f}")
             print(f"  Modes / NCV  : {num_modes} / {krylov_size}")
-        if imag_shift:
-            print(f"  Imag shift   : {imag_shift}  (complex eigenvalues active)")
+            if imag_shift:
+                print(f"  Imag shift   : {imag_shift}  (complex eigenvalues active)")
             print(f"  Output dir   : {out_dir}")
             print("==========================================")
             print(f"\n[1/3] Assembling operators...")
