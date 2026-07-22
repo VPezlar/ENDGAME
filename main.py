@@ -11,6 +11,7 @@ from petsc4py import PETSc
 
 from src.operators import assemble_distributed
 from src.solver import solve_evp
+from src.baseflow import load_baseflow
 
 Nx = int(os.environ.get("ENDGAME_NX", 30))
 Ny = int(os.environ.get("ENDGAME_NY", Nx))
@@ -23,6 +24,7 @@ target_sigma = float(os.environ.get("ENDGAME_TARGET", 0.1)) # Real part of NS ei
 num_modes     = int(os.environ.get("ENDGAME_MODES", 10))
 krylov_size   = int(os.environ.get("ENDGAME_NCV",   50))
 imag_shift = float(os.environ.get("ENDGAME_IMAG_SHIFT", 0.0))
+baseflow_cache = os.environ.get("ENDGAME_BASEFLOW", "")
 
 def generate_dummy_baseflow(N_total):
     """
@@ -82,8 +84,30 @@ if __name__ == "__main__":
             print(f"\n[1/3] Assembling block operators...")
 
         t0 = time.time()
-        baseflow, params = generate_dummy_baseflow(N_nodes)
-        
+        if baseflow_cache:
+            params = {
+                'Re': float(os.environ.get("ENDGAME_RE", 1e4)),
+                'M': float(os.environ.get("ENDGAME_M", 0.5)),
+                'gamma': float(os.environ.get("ENDGAME_GAMMA", 1.4)),
+                'Pr': float(os.environ.get("ENDGAME_PR", 0.72)),
+                'visc_law': os.environ.get("ENDGAME_VISC", "sutherland"),
+                'visc_n': float(os.environ.get("ENDGAME_VISC_N", 0.666)),
+                'S_ref': float(os.environ.get("ENDGAME_S_REF", 0.3676)),
+                'T_reference': float(os.environ.get("ENDGAME_T_REF", 1.0)),
+            }
+            if "ENDGAME_S_DIM" in os.environ:
+                params['S_dim'] = float(os.environ["ENDGAME_S_DIM"])
+            baseflow, params = load_baseflow(
+                baseflow_cache, Nx, Ny, Nz, q, params,
+                xi_half=xi_half, eta_half=eta_half, zeta_half=zeta_half, strict=True
+            )
+            if rank == 0:
+                print(f"  Baseflow     : cached ({baseflow_cache})")
+        else:
+            baseflow, params = generate_dummy_baseflow(N_nodes)
+            if rank == 0:
+                print("  Baseflow     : dummy uniform flow")
+
         A_petsc, B_petsc, x, y, z = assemble_distributed(
             Nx, Ny, Nz, q, baseflow, params, xi_half, eta_half, zeta_half, imag_shift=imag_shift
         )

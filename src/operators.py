@@ -2,8 +2,7 @@ import numpy as np
 import scipy.sparse as sp
 from mpi4py import MPI
 from petsc4py import PETSc
-from src import FDq as FD
-from src.grid import BL_Map, Map1D
+from src.stab_grid import build_grid
 
 class TriGlobalCoefficients:
     """
@@ -146,30 +145,10 @@ def assemble_distributed(Nx, Ny, Nz, q, baseflow, params, xi_half=0.501, eta_hal
     N_nodes = Nx_n * Ny_n * Nz_n
     N_sys = N_nodes * 5  # 5 equations: rho, u, v, w, T
 
-    D1x, D2x, xi   = FD.FDq_Mat(Nx, q)
-    D1y, D2y, eta  = FD.FDq_Mat(Ny, q)
-    D1z, D2z, zeta = FD.FDq_Mat(Nz, q)
-
-    x_tmp, Jx, Jxx = BL_Map(xi,   1, xi_half)
-    y_tmp, Jy, Jyy = BL_Map(eta,  1, eta_half)
-    z_tmp, Jz, Jzz = BL_Map(zeta, 1, zeta_half)
-
-    x, Jx_s = Map1D(-1, 1, x_tmp)
-    y, Jy_s = Map1D(-1, 1, y_tmp)
-    z, Jz_s = Map1D(-1, 1, z_tmp)
-
-    # 1D Physical First Derivatives
-    dx = sp.csr_matrix(Jx_s * np.diag(Jx) @ D1x)
-    dy = sp.csr_matrix(Jy_s * np.diag(Jy) @ D1y)
-    dz = sp.csr_matrix(Jz_s * np.diag(Jz) @ D1z)
-
-    # 1D Physical Second Derivatives
-    dxx = sp.csr_matrix((Jx_s**2) * (np.diag(Jx**2) @ D2x + np.diag(Jxx) @ D1x))
-    dyy = sp.csr_matrix((Jy_s**2) * (np.diag(Jy**2) @ D2y + np.diag(Jyy) @ D1y))
-    dzz = sp.csr_matrix((Jz_s**2) * (np.diag(Jz**2) @ D2z + np.diag(Jzz) @ D1z))
-
-    for mat in [dx, dy, dz, dxx, dyy, dzz]:
-        mat.eliminate_zeros()
+    grid = build_grid(Nx, Ny, Nz, q, xi_half, eta_half, zeta_half)
+    x, y, z = grid["x"], grid["y"], grid["z"]
+    dx, dy, dz = grid["dx"], grid["dy"], grid["dz"]
+    dxx, dyy, dzz = grid["dxx"], grid["dyy"], grid["dzz"]
 
     coeff = TriGlobalCoefficients(baseflow, params)
 
