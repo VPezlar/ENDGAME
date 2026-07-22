@@ -92,11 +92,13 @@ if __name__ == "__main__":
                 'Pr': float(os.environ.get("ENDGAME_PR", 0.72)),
                 'visc_law': os.environ.get("ENDGAME_VISC", "sutherland"),
                 'visc_n': float(os.environ.get("ENDGAME_VISC_N", 0.666)),
-                'S_ref': float(os.environ.get("ENDGAME_S_REF", 0.3676)),
-                'T_reference': float(os.environ.get("ENDGAME_T_REF", 1.0)),
+                'gas': os.environ.get("ENDGAME_GAS", "air"),
+                'T_reference': float(os.environ.get("ENDGAME_T_REF", 288.0)),
             }
             if "ENDGAME_S_DIM" in os.environ:
                 params['S_dim'] = float(os.environ["ENDGAME_S_DIM"])
+            if "ENDGAME_S_REF" in os.environ:
+                params['S_ref'] = float(os.environ["ENDGAME_S_REF"])
             baseflow, params = load_baseflow(
                 baseflow_cache, Nx, Ny, Nz, q, params,
                 xi_half=xi_half, eta_half=eta_half, zeta_half=zeta_half, strict=True
