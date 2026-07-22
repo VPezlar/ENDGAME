@@ -96,14 +96,19 @@ def solve_evp(A_petsc, B_petsc, target_sigma, num_modes, krylov_size):
     eps.destroy()
 
     if rank == 0:
+        timing = {"t_mumps_s": round(t_mumps, 3), "t_krylov_s": round(t_krylov, 3)}
+
+        if len(eigenvalues_raw) == 0:
+            n_dof = A_petsc.getSize()[0]
+            return None, np.array([], dtype=complex), np.empty((n_dof, 0), dtype=float), timing
+
         evals = np.array(eigenvalues_raw, dtype=complex)
         eigenvectors = np.column_stack(eigenvectors_raw)
-        
+
         sort_idx = np.argsort(np.abs(evals - target_sigma))
         evals = evals[sort_idx]
         eigenvectors = eigenvectors[:, sort_idx]
 
-        timing = {"t_mumps_s": round(t_mumps, 3), "t_krylov_s": round(t_krylov, 3)}
         return None, evals, eigenvectors, timing
     else:
         return None, None, None, {}

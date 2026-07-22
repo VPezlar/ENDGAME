@@ -36,7 +36,7 @@ ppn_reserve  = int(sys.argv[10]) if len(sys.argv) > 10 else ppn  # PBS ppn (>ppn
 
 nodes = (P + ppn - 1) // ppn   # number of nodes needed
 
-Q, MODES, NCV, TARGET = 6, 40, 100, 43.0
+Q, MODES, NCV, TARGET = 6, 40, 100, 0.0
 
 if Nx == Ny == Nz:
     tag = f"N{Nx}_q{Q}_P{P}"

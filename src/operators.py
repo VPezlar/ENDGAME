@@ -139,7 +139,8 @@ class TriGlobalCoefficients:
 def assemble_distributed(Nx, Ny, Nz, q, baseflow, params, xi_half=0.501, eta_half=0.501, zeta_half=0.501, imag_shift=0.0):
     """
     Assemble the TriGlobal Navier-Stokes operators directly into PETSc MPIAIJ format.
-    Handles the 5x5 block system using physical dictionaries for pointwise insertion.
+    Uses dictionary accumulators to coalesce duplicates and bulk setValues insertion
+    to minimize C-API and Python allocation overhead.
     """
     Nx_n, Ny_n, Nz_n = Nx + 1, Ny + 1, Nz + 1
     N_nodes = Nx_n * Ny_n * Nz_n
@@ -200,72 +201,85 @@ def assemble_distributed(Nx, Ny, Nz, q, baseflow, params, xi_half=0.501, eta_hal
 
         # DIRICHLET BCs - Enforced strongly at inflow and all other physical boundaries.
         if ix == 0 or ix == Nx or iy == 0 or iy == Ny or iz == 0 or iz == Nz:
-            A_petsc.setValue(I_global, I_global, 1.0)
-            continue # Leave B_petsc at 0.0 to exclude boundary modes from the spectrum
+            A_petsc.setValue(I_global, I_global, 1.0, PETSc.InsertMode.ADD_VALUES)
+            continue
+
+        # Local row accumulators to eliminate C-API call overhead
+        row_A = {}
+        row_B = {}
 
         for var_idx in range(5):
             block_A = coeff.A[eq_idx][var_idx]
             block_B = coeff.B[eq_idx][var_idx]
-            
+
             # Assembly for B Operator
             if 'I' in block_B:
                 J_global = var_idx * N_nodes + i
-                B_petsc.setValue(I_global, J_global, block_B['I'][i], PETSc.InsertMode.ADD_VALUES)
+                row_B[J_global] = row_B.get(J_global, 0.0) + block_B['I'][i]
 
-            if not block_A: continue
+            if not block_A:
+                continue
 
             # Identity
             if 'I' in block_A:
                 J_global = var_idx * N_nodes + i
-                A_petsc.setValue(I_global, J_global, block_A['I'][i], PETSc.InsertMode.ADD_VALUES)
+                row_A[J_global] = row_A.get(J_global, 0.0) + block_A['I'][i]
 
             # First Derivatives
             if 'Dx' in block_A:
                 for k in range(int(dx.indptr[ix]), int(dx.indptr[ix + 1])):
                     J_global = var_idx * N_nodes + (int(dx.indices[k]) + iy * Nx_n + iz * Nx_n * Ny_n)
-                    A_petsc.setValue(I_global, J_global, block_A['Dx'][i] * float(dx.data[k]), PETSc.InsertMode.ADD_VALUES)
+                    row_A[J_global] = row_A.get(J_global, 0.0) + block_A['Dx'][i] * float(dx.data[k])
             if 'Dy' in block_A:
                 for k in range(int(dy.indptr[iy]), int(dy.indptr[iy + 1])):
                     J_global = var_idx * N_nodes + (ix + int(dy.indices[k]) * Nx_n + iz * Nx_n * Ny_n)
-                    A_petsc.setValue(I_global, J_global, block_A['Dy'][i] * float(dy.data[k]), PETSc.InsertMode.ADD_VALUES)
+                    row_A[J_global] = row_A.get(J_global, 0.0) + block_A['Dy'][i] * float(dy.data[k])
             if 'Dz' in block_A:
                 for k in range(int(dz.indptr[iz]), int(dz.indptr[iz + 1])):
                     J_global = var_idx * N_nodes + (ix + iy * Nx_n + int(dz.indices[k]) * Nx_n * Ny_n)
-                    A_petsc.setValue(I_global, J_global, block_A['Dz'][i] * float(dz.data[k]), PETSc.InsertMode.ADD_VALUES)
+                    row_A[J_global] = row_A.get(J_global, 0.0) + block_A['Dz'][i] * float(dz.data[k])
 
             # Second Derivatives
             if 'Dxx' in block_A:
                 for k in range(int(dxx.indptr[ix]), int(dxx.indptr[ix + 1])):
                     J_global = var_idx * N_nodes + (int(dxx.indices[k]) + iy * Nx_n + iz * Nx_n * Ny_n)
-                    A_petsc.setValue(I_global, J_global, block_A['Dxx'][i] * float(dxx.data[k]), PETSc.InsertMode.ADD_VALUES)
+                    row_A[J_global] = row_A.get(J_global, 0.0) + block_A['Dxx'][i] * float(dxx.data[k])
             if 'Dyy' in block_A:
                 for k in range(int(dyy.indptr[iy]), int(dyy.indptr[iy + 1])):
                     J_global = var_idx * N_nodes + (ix + int(dyy.indices[k]) * Nx_n + iz * Nx_n * Ny_n)
-                    A_petsc.setValue(I_global, J_global, block_A['Dyy'][i] * float(dyy.data[k]), PETSc.InsertMode.ADD_VALUES)
+                    row_A[J_global] = row_A.get(J_global, 0.0) + block_A['Dyy'][i] * float(dyy.data[k])
             if 'Dzz' in block_A:
                 for k in range(int(dzz.indptr[iz]), int(dzz.indptr[iz + 1])):
                     J_global = var_idx * N_nodes + (ix + iy * Nx_n + int(dzz.indices[k]) * Nx_n * Ny_n)
-                    A_petsc.setValue(I_global, J_global, block_A['Dzz'][i] * float(dzz.data[k]), PETSc.InsertMode.ADD_VALUES)
+                    row_A[J_global] = row_A.get(J_global, 0.0) + block_A['Dzz'][i] * float(dzz.data[k])
 
             # Cross Derivatives (Nested Kronecker mapping)
             if 'Dxy' in block_A:
                 for k_x in range(int(dx.indptr[ix]), int(dx.indptr[ix + 1])):
                     for k_y in range(int(dy.indptr[iy]), int(dy.indptr[iy + 1])):
                         J_global = var_idx * N_nodes + (int(dx.indices[k_x]) + int(dy.indices[k_y]) * Nx_n + iz * Nx_n * Ny_n)
-                        val = block_A['Dxy'][i] * float(dx.data[k_x]) * float(dy.data[k_y])
-                        A_petsc.setValue(I_global, J_global, val, PETSc.InsertMode.ADD_VALUES)
+                        row_A[J_global] = row_A.get(J_global, 0.0) + block_A['Dxy'][i] * float(dx.data[k_x]) * float(dy.data[k_y])
             if 'Dxz' in block_A:
                 for k_x in range(int(dx.indptr[ix]), int(dx.indptr[ix + 1])):
                     for k_z in range(int(dz.indptr[iz]), int(dz.indptr[iz + 1])):
                         J_global = var_idx * N_nodes + (int(dx.indices[k_x]) + iy * Nx_n + int(dz.indices[k_z]) * Nx_n * Ny_n)
-                        val = block_A['Dxz'][i] * float(dx.data[k_x]) * float(dz.data[k_z])
-                        A_petsc.setValue(I_global, J_global, val, PETSc.InsertMode.ADD_VALUES)
+                        row_A[J_global] = row_A.get(J_global, 0.0) + block_A['Dxz'][i] * float(dx.data[k_x]) * float(dz.data[k_z])
             if 'Dyz' in block_A:
                 for k_y in range(int(dy.indptr[iy]), int(dy.indptr[iy + 1])):
                     for k_z in range(int(dz.indptr[iz]), int(dz.indptr[iz + 1])):
                         J_global = var_idx * N_nodes + (ix + int(dy.indices[k_y]) * Nx_n + int(dz.indices[k_z]) * Nx_n * Ny_n)
-                        val = block_A['Dyz'][i] * float(dy.data[k_y]) * float(dz.data[k_z])
-                        A_petsc.setValue(I_global, J_global, val, PETSc.InsertMode.ADD_VALUES)
+                        row_A[J_global] = row_A.get(J_global, 0.0) + block_A['Dyz'][i] * float(dy.data[k_y]) * float(dz.data[k_z])
+
+        # Flush local accumulators to PETSc via vectorized C-API call
+        if row_A:
+            cols = np.array(list(row_A.keys()), dtype=PETSc.IntType)
+            vals = np.array(list(row_A.values()), dtype=PETSc.ScalarType)
+            A_petsc.setValues(I_global, cols, vals, PETSc.InsertMode.ADD_VALUES)
+
+        if row_B:
+            cols = np.array(list(row_B.keys()), dtype=PETSc.IntType)
+            vals = np.array(list(row_B.values()), dtype=PETSc.ScalarType)
+            B_petsc.setValues(I_global, cols, vals, PETSc.InsertMode.ADD_VALUES)
 
     A_petsc.assemblyBegin(); A_petsc.assemblyEnd()
     B_petsc.assemblyBegin(); B_petsc.assemblyEnd()
@@ -276,3 +290,4 @@ def assemble_distributed(Nx, Ny, Nz, q, baseflow, params, xi_half=0.501, eta_hal
         A_petsc.assemblyBegin(); A_petsc.assemblyEnd()
 
     return A_petsc, B_petsc, x, y, z
+
