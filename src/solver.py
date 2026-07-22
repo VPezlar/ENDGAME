@@ -105,7 +105,7 @@ def solve_evp(A_petsc, B_petsc, target_sigma, num_modes, krylov_size):
         evals = np.array(eigenvalues_raw, dtype=complex)
         eigenvectors = np.column_stack(eigenvectors_raw)
 
-        sort_idx = np.argsort(np.abs(evals - target_sigma))
+        sort_idx = np.argsort(-np.imag(evals))
         evals = evals[sort_idx]
         eigenvectors = eigenvectors[:, sort_idx]
 
